@@ -17,7 +17,7 @@ import {
   StatisticsResponse,
 } from "../types/service";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 class DashboardService {
   private api = axios.create({
