@@ -1,4 +1,4 @@
-// backend_service/db/database.js - Database configuration
+// backend_service/db/database.js - Database configuration..
 const mongoose = require("mongoose");
 const config = require("../config/index");
 
