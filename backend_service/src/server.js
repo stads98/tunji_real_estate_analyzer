@@ -20,6 +20,8 @@ const server = express();
 const corsOptions = {
   origin: [
     "https://realestateanalyzer.netlify.app",
+    "https://realestateanalyzer.vercel.app",
+    "https://realestateanalyzerapi.vercel.app",
     "http://localhost:5000",
     "http://localhost:3000",
     "http://localhost:3001",
