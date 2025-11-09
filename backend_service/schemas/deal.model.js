@@ -89,6 +89,8 @@ const dealNotesSchema = new mongoose.Schema(
       siding: String,
       sidingType: String,
       windows: String,
+      windowsType: String,
+      windowsCondition: String,
       doors: String,
       gutters: String,
       landscaping: String,
@@ -155,13 +157,54 @@ const dealNotesSchema = new mongoose.Schema(
     },
     generalNotes: String,
     isScopeFinalized: Boolean,
+    lineItems: [
+      {
+        id: String,
+        category: String,
+        description: String,
+        estimatedCost: Number,
+      },
+    ],
 
     // Additional fields for enhanced calculations
     floodZone: Boolean,
     confidenceScore: Number,
     _rehabLevel: String,
     _rehabCostPsqft: Number,
+    _rehabCostEstimate: Number,
     _riskScore: Number,
+    _followUp: [String],
+    _calc: {
+      version: Number,
+      timestamp: String,
+    },
+
+    // Enhanced condition fields for VA workflow
+    foundationType: String,
+    roofAge: Number,
+    structuralIssues: Boolean,
+    hvacType: String,
+    hvacCount: Number,
+    hvacAge: Number,
+    hvacWorking: String,
+    electricalUpdated: String,
+    electricalIssues: String,
+    waterHeaterAge: Number,
+    waterHeaterWorking: String,
+    kitchenConditionLevel: String,
+    bathroomsConditionLevel: String,
+    flooringCondition: String,
+    interiorPaintNeeded: Boolean,
+    windowsType: String,
+    ceilingStains: Boolean,
+    neighborhoodTier: String,
+    crimeRisk: String,
+    insuranceZone: String,
+    proximityToWater: Number,
+    sellingReason: String,
+    timelinePressure: Boolean,
+    flexibleOnPrice: Boolean,
+    asIsAccepted: Boolean,
 
     lastUpdated: { type: String, default: () => new Date().toISOString() },
   },
@@ -236,14 +279,6 @@ const dealSchema = new mongoose.Schema(
     subjectPropertyDescription: { type: String },
     subjectPropertyZillowLink: { type: String },
 
-    strADR: { type: Number }, // DEPRECATED but needed for compatibility
-    hasHurricaneWindows: { type: Boolean, default: false },
-    hasNewRoof: { type: Boolean, default: false },
-    setupFurnishCost: { type: Number, default: 0 },
-    rehabPropertyTaxes: { type: Number, default: 0 },
-    rehabPropertyInsurance: { type: Number, default: 0 },
-    dscrAcquisitionCosts: { type: Number },
-
     // Property photos and notes
     photos: [
       {
@@ -252,11 +287,57 @@ const dealSchema = new mongoose.Schema(
         isPrimary: Boolean,
       },
     ],
+    photoUrl: { type: String }, // Legacy field for backward compatibility
     notes: dealNotesSchema,
+
+    // Deal stage tracking - NEW FIELDS ADDED
+    dealStage: {
+      type: String,
+      enum: [
+        "stage1-basic-data",
+        "stage2-ready-comps",
+        "stage3-data-collection",
+        "stage4-ready-offer",
+        "stage5-offer-submitted",
+        "stage6-accepted",
+        "stage6-rejected",
+        "stage6-counter",
+        "archived",
+      ],
+      default: "stage1-basic-data",
+    },
+    stageUpdatedAt: { type: Date },
+
+    // Timeline tracking - NEW FIELDS ADDED
+    daysOnMarket: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now },
+    completedAt: { type: Date },
+
+    // Team notes - NEW FIELD ADDED
+    teamNotes: [
+      {
+        id: String,
+        dealId: String,
+        author: { type: String, enum: ["user1", "user2", "system"] },
+        message: String,
+        timestamp: { type: String, default: () => new Date().toISOString() },
+        isPinned: { type: Boolean, default: false },
+        isSystemNote: { type: Boolean, default: false },
+        changeType: {
+          type: String,
+          enum: ["stage", "maxOffer", "rehab", "offMarket", "price"],
+        },
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
 
     // Metadata
     isActive: { type: Boolean, default: true },
     schemaVersion: { type: Number, default: 3 },
+
+    // Legacy fields for migration
+    isCompleted: { type: Boolean, default: false }, // DEPRECATED - use dealStage instead
   },
   {
     timestamps: true,
@@ -279,6 +360,8 @@ dealSchema.index({ address: "text" });
 dealSchema.index({ isActive: 1 });
 dealSchema.index({ "unitDetails.beds": 1 });
 dealSchema.index({ purchasePrice: 1 });
+dealSchema.index({ dealStage: 1 }); // NEW INDEX for stage queries
+dealSchema.index({ stageUpdatedAt: -1 }); // NEW INDEX for stage timeline
 
 const Deal = mongoose.model("Deal", dealSchema);
 module.exports = Deal;

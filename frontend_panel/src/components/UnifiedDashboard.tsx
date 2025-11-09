@@ -44,7 +44,6 @@ import {
   SavedDeal,
   UnitData,
   DealStage,
-  DEAL_SCHEMA_VERSION,
 } from "../types/deal";
 import {
   calculateLTR,
@@ -125,7 +124,6 @@ import { PipelineStats } from "./PipelineStats";
 import { UserGuide } from "./UserGuide";
 import { TeamNotesTab } from "./TeamNotesTab";
 import { BulkPasteDialog } from "./BulkPasteDialog";
-import { BulkProperty } from "../utils/zillowBulkParser";
 
 interface UnifiedDashboardProps {
   globalAssumptions: GlobalAssumptions;
@@ -663,7 +661,6 @@ export function UnifiedDashboard({
 
       // Update deal stage via API - use proper type casting
       await dashboardService.updateDeal(dealId, {
-        ...deal, // Include all existing deal data
         dealStage: newStage,
         stageUpdatedAt: new Date().toISOString(),
       } as Partial<DealInputs> & { dealStage: DealStage; stageUpdatedAt: string });
@@ -3496,7 +3493,7 @@ export function UnifiedDashboard({
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
-                                    {/* ERROR FROM BACKEND */}
+                                    {/* NOT UPDATING BACKEND */}
                                     <Select
                                       value={
                                         deal.dealStage || "stage1-basic-data"
