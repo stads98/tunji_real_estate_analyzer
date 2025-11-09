@@ -36,10 +36,8 @@ export const DealNotes: React.FC<DealNotesProps> = ({
 
   // Load notes and user settings
   useEffect(() => {
-    if (isOpen && dealId) {
-      loadNotes();
-      loadUserSettings();
-    }
+    loadNotes();
+    loadUserSettings();
   }, [isOpen, dealId]);
 
   const loadNotes = async () => {
@@ -180,9 +178,13 @@ export const DealNotes: React.FC<DealNotesProps> = ({
         >
           <MessageSquare className="h-4 w-4" />
           <span>Notes</span>
-          {notes.length > 0 && (
+          {notes.length > 0 ? (
             <Badge variant="secondary" className="ml-auto">
               {notes.length}
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="ml-auto">
+              0
             </Badge>
           )}
         </Button>

@@ -68,32 +68,51 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
     }
   };
 
-  // Calculate date range based on timeframe
-  // const getDateRange = (): DateRange => {
-  //   const now = new Date();
-  //   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // FIXED: Validate and handle start date change
+  const handleStartDateChange = (dateString: string) => {
+    const newStartDate = new Date(dateString);
+    const currentEndDate = customRange.end;
 
-  //   switch (timeFrame) {
-  //     case "today":
-  //       return { start: today, end: now };
+    // If new start date is after current end date, adjust end date to be same as start date
+    if (newStartDate > currentEndDate) {
+      setCustomRange({
+        start: newStartDate,
+        end: newStartDate,
+      });
+    } else {
+      setCustomRange({
+        ...customRange,
+        start: newStartDate,
+      });
+    }
+  };
 
-  //     case "week":
-  //       const weekStart = new Date(today);
-  //       weekStart.setDate(today.getDate() - 7);
-  //       return { start: weekStart, end: now };
+  // FIXED: Validate and handle end date change
+  const handleEndDateChange = (dateString: string) => {
+    const newEndDate = new Date(dateString);
+    const currentStartDate = customRange.start;
 
-  //     case "month":
-  //       const monthStart = new Date(today);
-  //       monthStart.setDate(today.getDate() - 30);
-  //       return { start: monthStart, end: now };
+    // If new end date is before current start date, don't allow the change
+    if (newEndDate < currentStartDate) {
+      toast.error("End date cannot be before start date");
+      return;
+    }
 
-  //     case "custom":
-  //       return customRange;
+    setCustomRange({
+      ...customRange,
+      end: newEndDate,
+    });
+  };
 
-  //     default:
-  //       return { start: today, end: now };
-  //   }
-  // };
+  // FIXED: Get minimum allowed end date
+  const getMinEndDate = () => {
+    return customRange.start.toISOString().split("T")[0];
+  };
+
+  // FIXED: Get maximum allowed start date
+  const getMaxStartDate = () => {
+    return customRange.end.toISOString().split("T")[0];
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -173,12 +192,8 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
                 id="start-date"
                 type="date"
                 value={customRange.start.toISOString().split("T")[0]}
-                onChange={(e) =>
-                  setCustomRange({
-                    ...customRange,
-                    start: new Date(e.target.value),
-                  })
-                }
+                max={getMaxStartDate()} // FIXED: Can't select start date after end date
+                onChange={(e) => handleStartDateChange(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -187,17 +202,23 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
                 id="end-date"
                 type="date"
                 value={customRange.end.toISOString().split("T")[0]}
-                onChange={(e) =>
-                  setCustomRange({
-                    ...customRange,
-                    end: new Date(e.target.value),
-                  })
-                }
+                min={getMinEndDate()} // FIXED: Can't select end date before start date
+                onChange={(e) => handleEndDateChange(e.target.value)}
               />
             </div>
           </div>
+          {/* FIXED: Show validation message if dates are invalid */}
+          {customRange.start > customRange.end && (
+            <div className="mt-2 text-sm text-red-600">
+              ⚠️ End date cannot be before start date
+            </div>
+          )}
           <div className="mt-3 flex justify-end">
-            <Button onClick={loadStats} size="sm">
+            <Button
+              onClick={loadStats}
+              size="sm"
+              disabled={customRange.start > customRange.end} // FIXED: Disable if invalid
+            >
               Apply Date Range
             </Button>
           </div>
