@@ -70,7 +70,7 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
 
   //SIMPLIFIED: Get today's date properly
   const getToday = () => {
-    return new Date(); // Return full date object, not stripped of time
+    return new Date(); 
   };
 
   // SIMPLIFIED: Handle start date change

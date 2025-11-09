@@ -333,7 +333,7 @@ class DealService {
     }
   }
 
-  // Add this method to your existing DealService class
+  // bulk zillow create
   async bulkCreateDealsWithStaging(properties) {
     try {
       console.log("Received properties count:", properties.length);
