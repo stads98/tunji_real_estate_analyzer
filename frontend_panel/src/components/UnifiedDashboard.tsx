@@ -1,5 +1,5 @@
 //src/components/UnifiedDashboard.tsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -124,6 +124,7 @@ import { PipelineStats } from "./PipelineStats";
 import { UserGuide } from "./UserGuide";
 import { TeamNotesTab } from "./TeamNotesTab";
 import { BulkPasteDialog } from "./BulkPasteDialog";
+import { useAutoSave } from "../hooks/useAutoSave";
 
 interface UnifiedDashboardProps {
   globalAssumptions: GlobalAssumptions;
@@ -254,8 +255,10 @@ export function UnifiedDashboard({
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const [savingDeal, setSavingDeal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [savingDeal, setSavingDeal] = useState(false); // For manual save button
+  const [isAutoSaving, setIsAutoSaving] = useState(false); // For auto-save indicator
+  const [isSaving, setIsSaving] = useState(false); // For general saving state (table overlay)
 
   // Load saved deals from API on component mount
   useEffect(() => {
@@ -1148,117 +1151,145 @@ export function UnifiedDashboard({
   };
 
   // Updated save deal function with VPS file upload
-  const handleSaveDeal = async () => {
-    if (!inputs.address.trim()) {
-      toast.error("Please enter an address before saving");
-      return;
-    }
+  const handleSaveDeal = useCallback(
+    async (isAutoSave = false) => {
+      if (!inputs.address.trim()) {
+        if (!isAutoSave) {
+          toast.error("Please enter an address before saving");
+        }
+        return;
+      }
 
-    try {
-      setSavingDeal(true);
+      try {
+        // Set appropriate saving states
+        if (isAutoSave) {
+          setIsAutoSaving(true);
+        } else {
+          setSavingDeal(true);
+        }
+        setIsSaving(true);
 
-      // Convert and upload photos to VPS
-      let photosToSave = inputs.photos || [];
+        // Convert and upload photos to VPS
+        let photosToSave = inputs.photos || [];
 
-      if (photosToSave.length > 0) {
-        const uploadResults = await Promise.all(
-          photosToSave.map(async (photo) => {
-            try {
-              let file: File | null = null;
+        if (photosToSave.length > 0) {
+          const uploadResults = await Promise.all(
+            photosToSave.map(async (photo) => {
+              try {
+                let file: File | null = null;
 
-              // Convert base64 or blob URL to File object
-              if (
-                photo.url.startsWith("data:") ||
-                photo.url.startsWith("blob:")
-              ) {
-                const response = await fetch(photo.url);
-                const blob = await response.blob();
-                file = new File([blob], `photo-${Date.now()}.jpg`, {
-                  type: "image/jpeg",
-                });
-              }
+                if (
+                  photo.url.startsWith("data:") ||
+                  photo.url.startsWith("blob:")
+                ) {
+                  const response = await fetch(photo.url);
+                  const blob = await response.blob();
+                  file = new File([blob], `photo-${Date.now()}.jpg`, {
+                    type: "image/jpeg",
+                  });
+                }
 
-              if (file) {
-                // Upload to VPS using the service
-                const result = await dashboardService.uploadFile(file);
+                if (file) {
+                  const result = await dashboardService.uploadFile(file);
+                  return {
+                    ...photo,
+                    url: result.fileUrl,
+                    fileName: result.fileName,
+                    originalName: result.originalName,
+                    fileSize: result.fileSize,
+                    mimeType: result.mimeType,
+                  };
+                }
+
+                return photo;
+              } catch (error) {
+                console.error("Failed to upload photo to VPS:", error);
                 return {
                   ...photo,
-                  url: result.fileUrl, // VPS file URL
-                  fileName: result.fileName, // Store file name for future reference
-                  originalName: result.originalName,
-                  fileSize: result.fileSize,
-                  mimeType: result.mimeType,
+                  uploadFailed: true,
                 };
               }
+            })
+          );
+          photosToSave = uploadResults;
+        }
 
-              // If it's already a VPS URL or external URL, keep it as is
-              return photo;
-            } catch (error) {
-              console.error("Failed to upload photo to VPS:", error);
-              // Fallback: keep the original URL but mark as not uploaded
-              return {
-                ...photo,
-                uploadFailed: true,
-              };
-            }
-          })
-        );
+        const dealToSave: DealInputs = {
+          ...inputs,
+          photos: photosToSave,
+        };
 
-        photosToSave = uploadResults;
+        let result: { data: SavedDeal; message?: string };
+        if (currentDealId) {
+          result = await dashboardService.updateDeal(currentDealId, dealToSave);
+          setSavedDeals((prev) =>
+            prev.map((d) =>
+              d.id === currentDealId ? { ...result.data, id: currentDealId } : d
+            )
+          );
+        } else {
+          result = await dashboardService.createDeal(dealToSave);
+          const newDeal = { ...result.data, id: result.data.id };
+          setSavedDeals((prev) => [...prev, newDeal]);
+          setCurrentDealId(newDeal.id);
+        }
+
+        // Only show toast for manual saves, not auto-saves
+        if (!isAutoSave) {
+          const successfulUploads = photosToSave.filter(
+            (p: any) => !p.uploadFailed
+          ).length;
+          const failedUploads = photosToSave.filter(
+            (p: any) => !!p.uploadFailed
+          ).length;
+
+          let description = "";
+          if (successfulUploads > 0) {
+            description += `${successfulUploads} photos uploaded to server`;
+          }
+          if (failedUploads > 0) {
+            description += `${
+              description ? ", " : ""
+            }${failedUploads} photos failed to upload`;
+          }
+
+          toast.success(result.message, {
+            description: description || undefined,
+          });
+        }
+
+        await loadDealsFromAPI();
+      } catch (error) {
+        console.error("Failed to save deal:", error);
+        if (!isAutoSave) {
+          toast.error("Failed to save deal");
+        }
+      } finally {
+        // Reset appropriate saving states
+        if (isAutoSave) {
+          setIsAutoSaving(false);
+        } else {
+          setSavingDeal(false);
+        }
+        setIsSaving(false);
       }
+    },
+    [inputs, currentDealId]
+  );
 
-      const dealToSave: DealInputs = {
-        ...inputs,
-        photos: photosToSave,
-      };
-
-      // Rest of your save logic...
-      let result: { data: SavedDeal; message?: string };
-      if (currentDealId) {
-        result = await dashboardService.updateDeal(currentDealId, dealToSave);
-        setSavedDeals((prev) =>
-          prev.map((d) =>
-            d.id === currentDealId ? { ...result.data, id: currentDealId } : d
-          )
-        );
-      } else {
-        result = await dashboardService.createDeal(dealToSave);
-        const newDeal = { ...result.data, id: result.data.id };
-        setSavedDeals((prev) => [...prev, newDeal]);
-        setCurrentDealId(newDeal.id);
-      }
-
-      // Show upload summary
-      const successfulUploads = photosToSave.filter(
-        (p: any) => !p.uploadFailed
-      ).length;
-      const failedUploads = photosToSave.filter(
-        (p: any) => !!p.uploadFailed
-      ).length;
-
-      let description = "";
-      if (successfulUploads > 0) {
-        description += `${successfulUploads} photos uploaded to server`;
-      }
-      if (failedUploads > 0) {
-        description += `${
-          description ? ", " : ""
-        }${failedUploads} photos failed to upload`;
-      }
-
-      toast.success(result.message, {
-        description: description || undefined,
-      });
-
-      await loadDealsFromAPI();
-    } catch (error) {
-      console.error("Failed to save deal:", error);
-      toast.error("Failed to save deal");
-    } finally {
-      setSavingDeal(false);
+  // Use the auto-save hook with proper error handling
+  useAutoSave(
+    inputs,
+    currentDealId,
+    useCallback(() => {
+      console.log("🚀 Auto-save triggered!");
+      handleSaveDeal(true);
+    }, [handleSaveDeal]),
+    {
+      delay: 3000, // 3 second delay after last change
+      enabled: true,
     }
-  };
-
+  );
   // Updated load deal function
   const handleLoadDeal = async (deal: SavedDeal) => {
     try {
@@ -2684,22 +2715,30 @@ export function UnifiedDashboard({
                 <Plus className="mr-2 h-4 w-4" />
                 New Deal
               </Button>
-              <Button
-                variant="default"
-                onClick={handleSaveDeal}
-                disabled={savingDeal}
-              >
-                {savingDeal ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                {savingDeal
-                  ? "Saving..."
-                  : currentDealId
-                  ? "Update Deal"
-                  : "Save Deal"}
-              </Button>
+
+              {isAutoSaving ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Auto-saving...
+                </div>
+              ) : (
+                <Button
+                  variant="default"
+                  onClick={() => handleSaveDeal(false)} // Pass false for manual save
+                  disabled={savingDeal}
+                >
+                  {savingDeal ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  {savingDeal
+                    ? "Saving..."
+                    : currentDealId
+                    ? "Update Deal"
+                    : "Save Deal"}
+                </Button>
+              )}
               <Button variant="outline" onClick={onOpenAssumptions}>
                 <Settings className="mr-2 h-4 w-4" />
                 Assumptions
@@ -3219,7 +3258,7 @@ export function UnifiedDashboard({
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {savedDeals.length > 0 && !loading && (
+                  {savedDeals.length > 0 && !loading && !isSaving && (
                     <div>
                       <Table>
                         <TableHeader>
@@ -3644,7 +3683,7 @@ export function UnifiedDashboard({
                 </CardContent>
               </Card>
             )}
-            {loading && (
+            {(loading || isSaving) && (
               <div className="flex p-4 mb-6  items-center justify-center h-64 bg-muted/30 border-2 border-dashed border-border rounded-lg">
                 <div className="text-gray-600 dark:text-gray-400 flex justify-center items-center gap-2">
                   <Loader className="animate-spin text-gray-500 dark:text-gray-400 h-4 w-4" />
@@ -3652,7 +3691,7 @@ export function UnifiedDashboard({
                 </div>
               </div>
             )}
-            {savedDeals.length === 0 && !loading && (
+            {savedDeals.length === 0 && !loading && !isSaving && (
               <div className="mb-6 p-6 bg-muted/30 border-2 border-dashed border-border rounded-lg">
                 <div className="flex flex-col items-center justify-center gap-3 text-center">
                   <p className="text-muted-foreground">
