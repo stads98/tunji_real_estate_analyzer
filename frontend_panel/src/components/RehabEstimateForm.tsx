@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -69,6 +69,10 @@ interface RehabEstimateFormProps {
   yearBuilt?: number;
   onRehabEstimateGenerated?: (estimate: RehabEstimateResult) => void;
   onRehabCostChange?: (cost: number) => void;
+  // NEW: Auto-save integration props
+  currentDealId?: string | null;
+  onAutoSaveTrigger?: () => void;
+  autoSaveEnabled?: boolean;
 }
 
 export function RehabEstimateForm({
@@ -79,6 +83,9 @@ export function RehabEstimateForm({
   yearBuilt,
   onRehabEstimateGenerated,
   onRehabCostChange,
+  // NEW: Auto-save props
+  onAutoSaveTrigger,
+  autoSaveEnabled = true,
 }: RehabEstimateFormProps) {
   const [localNotes, setLocalNotes] = useState<DealNotes>(notes);
   const [estimateResult, setEstimateResult] =
@@ -90,10 +97,30 @@ export function RehabEstimateForm({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [confidence, setConfidence] = useState<ConfidenceResult | null>(null);
   const [costRange, setCostRange] = useState<CostRangeResult | null>(null);
-  const [unknownFields, setUnknownFields] = useState<string[]>([]);
   const [showParseDialog, setShowParseDialog] = useState(false);
   const [parseText, setParseText] = useState("");
   const [showClearConfirmDialog, setShowClearConfirmDialog] = useState(false);
+
+  // Track changes for auto-save
+  const handleChangeWithAutoSave = useCallback(
+    (newNotes: DealNotes) => {
+      setLocalNotes(newNotes);
+
+      // Immediately notify parent of changes
+      onChange(newNotes);
+
+      // Trigger auto-save if enabled
+      if (autoSaveEnabled && onAutoSaveTrigger) {
+        onAutoSaveTrigger();
+      }
+    },
+    [onChange, onAutoSaveTrigger, autoSaveEnabled]
+  );
+
+  // Update local notes when parent notes change (e.g., from saved deal)
+  useEffect(() => {
+    setLocalNotes(notes);
+  }, [notes]);
 
   // Copy to clipboard helper with fallback for permissions issues
   const copyToClipboard = (text: string, fieldName: string) => {
@@ -197,8 +224,8 @@ export function RehabEstimateForm({
     }
   };
 
-  // Parse ChatGPT response and auto-fill fields
-  const handleParseChatGPT = () => {
+  // Enhanced ChatGPT parse handler
+  const handleParseChatGPT = useCallback(() => {
     if (!parseText.trim()) {
       toast.error("Please paste ChatGPT response text");
       return;
@@ -210,52 +237,285 @@ export function RehabEstimateForm({
       fullText,
     } = parseChatGPTResponse(parseText);
 
-    // Deep merge updates into localNotes, preserving existing values
-    const updatedNotes = {
+    // Type-safe deep merge - only update known DealNotes fields
+    const updatedNotes: DealNotes = {
       ...localNotes,
-      ...updates,
+      // Only spread known top-level fields from updates
+      ...(updates.realtorName !== undefined && {
+        realtorName: updates.realtorName,
+      }),
+      ...(updates.realtorPhone !== undefined && {
+        realtorPhone: updates.realtorPhone,
+      }),
+      ...(updates.realtorEmail !== undefined && {
+        realtorEmail: updates.realtorEmail,
+      }),
+      ...(updates.realtorNotes !== undefined && {
+        realtorNotes: updates.realtorNotes,
+      }),
+      ...(updates.sellerMotivation !== undefined && {
+        sellerMotivation: updates.sellerMotivation,
+      }),
+      ...(updates.overallCondition !== undefined && {
+        overallCondition: updates.overallCondition,
+      }),
+      ...(updates.estimatedRehabCost !== undefined && {
+        estimatedRehabCost: updates.estimatedRehabCost,
+      }),
+
+      // Nested objects with type safety (same as before but with lastUpdated)
       roof: updates.roof
-        ? { ...localNotes.roof, ...updates.roof }
+        ? {
+            ...localNotes.roof,
+            ...(updates.roof.condition !== undefined && {
+              condition: updates.roof.condition,
+            }),
+            ...(updates.roof.age !== undefined && { age: updates.roof.age }),
+            ...(updates.roof.roofYear !== undefined && {
+              roofYear: updates.roof.roofYear,
+            }),
+            ...(updates.roof.leaks !== undefined && {
+              leaks: updates.roof.leaks,
+            }),
+            ...(updates.roof.notes !== undefined && {
+              notes: updates.roof.notes,
+            }),
+          }
         : localNotes.roof,
+
       foundation: updates.foundation
-        ? { ...localNotes.foundation, ...updates.foundation }
+        ? {
+            ...localNotes.foundation,
+            ...(updates.foundation.condition !== undefined && {
+              condition: updates.foundation.condition,
+            }),
+            ...(updates.foundation.notes !== undefined && {
+              notes: updates.foundation.notes,
+            }),
+          }
         : localNotes.foundation,
+
       hvac: updates.hvac
-        ? { ...localNotes.hvac, ...updates.hvac }
+        ? {
+            ...localNotes.hvac,
+            ...(updates.hvac.condition !== undefined && {
+              condition: updates.hvac.condition,
+            }),
+            ...(updates.hvac.age !== undefined && { age: updates.hvac.age }),
+            ...(updates.hvac.systemType !== undefined && {
+              systemType: updates.hvac.systemType,
+            }),
+            ...(updates.hvac.numberOfUnits !== undefined && {
+              numberOfUnits: updates.hvac.numberOfUnits,
+            }),
+            ...(updates.hvac.notes !== undefined && {
+              notes: updates.hvac.notes,
+            }),
+          }
         : localNotes.hvac,
+
       plumbing: updates.plumbing
-        ? { ...localNotes.plumbing, ...updates.plumbing }
+        ? {
+            ...localNotes.plumbing,
+            ...(updates.plumbing.condition !== undefined && {
+              condition: updates.plumbing.condition,
+            }),
+            ...(updates.plumbing.pipeMaterial !== undefined && {
+              pipeMaterial: updates.plumbing.pipeMaterial,
+            }),
+            ...(updates.plumbing.pipeAge !== undefined && {
+              pipeAge: updates.plumbing.pipeAge,
+            }),
+            ...(updates.plumbing.waterHeater !== undefined && {
+              waterHeater: updates.plumbing.waterHeater,
+            }),
+            ...(updates.plumbing.leaks !== undefined && {
+              leaks: updates.plumbing.leaks,
+            }),
+            ...(updates.plumbing.notes !== undefined && {
+              notes: updates.plumbing.notes,
+            }),
+          }
         : localNotes.plumbing,
+
       electrical: updates.electrical
-        ? { ...localNotes.electrical, ...updates.electrical }
+        ? {
+            ...localNotes.electrical,
+            ...(updates.electrical.condition !== undefined && {
+              condition: updates.electrical.condition,
+            }),
+            ...(updates.electrical.panelSize !== undefined && {
+              panelSize: updates.electrical.panelSize,
+            }),
+            ...(updates.electrical.panelAmperage !== undefined && {
+              panelAmperage: updates.electrical.panelAmperage,
+            }),
+            ...(updates.electrical.wiringType !== undefined && {
+              wiringType: updates.electrical.wiringType,
+            }),
+            ...(updates.electrical.notes !== undefined && {
+              notes: updates.electrical.notes,
+            }),
+          }
         : localNotes.electrical,
+
       kitchen: updates.kitchen
-        ? { ...localNotes.kitchen, ...updates.kitchen }
+        ? {
+            ...localNotes.kitchen,
+            ...(updates.kitchen.condition !== undefined && {
+              condition: updates.kitchen.condition,
+            }),
+            ...(updates.kitchen.cabinets !== undefined && {
+              cabinets: updates.kitchen.cabinets,
+            }),
+            ...(updates.kitchen.countertops !== undefined && {
+              countertops: updates.kitchen.countertops,
+            }),
+            ...(updates.kitchen.appliances !== undefined && {
+              appliances: updates.kitchen.appliances,
+            }),
+            ...(updates.kitchen.flooring !== undefined && {
+              flooring: updates.kitchen.flooring,
+            }),
+            ...(updates.kitchen.notes !== undefined && {
+              notes: updates.kitchen.notes,
+            }),
+          }
         : localNotes.kitchen,
-      bathrooms: localNotes.bathrooms, // Keep existing bathrooms array
+
+      // Keep existing bathrooms array - don't modify from updates
+      bathrooms: localNotes.bathrooms,
+
       interior: updates.interior
-        ? { ...localNotes.interior, ...updates.interior }
+        ? {
+            ...localNotes.interior,
+            ...(updates.interior.flooring !== undefined && {
+              flooring: updates.interior.flooring,
+            }),
+            ...(updates.interior.walls !== undefined && {
+              walls: updates.interior.walls,
+            }),
+            ...(updates.interior.ceilings !== undefined && {
+              ceilings: updates.interior.ceilings,
+            }),
+            ...(updates.interior.lighting !== undefined && {
+              lighting: updates.interior.lighting,
+            }),
+            ...(updates.interior.openFloorPlan !== undefined && {
+              openFloorPlan: updates.interior.openFloorPlan,
+            }),
+            ...(updates.interior.notes !== undefined && {
+              notes: updates.interior.notes,
+            }),
+          }
         : localNotes.interior,
+
       exterior: updates.exterior
-        ? { ...localNotes.exterior, ...updates.exterior }
+        ? {
+            ...localNotes.exterior,
+            ...(updates.exterior.siding !== undefined && {
+              siding: updates.exterior.siding,
+            }),
+            ...(updates.exterior.sidingType !== undefined && {
+              sidingType: updates.exterior.sidingType,
+            }),
+            ...(updates.exterior.windows !== undefined && {
+              windows: updates.exterior.windows,
+            }),
+            ...(updates.exterior.windowsType !== undefined && {
+              windowsType: updates.exterior.windowsType,
+            }),
+            ...(updates.exterior.windowsCondition !== undefined && {
+              windowsCondition: updates.exterior.windowsCondition,
+            }),
+            ...(updates.exterior.doors !== undefined && {
+              doors: updates.exterior.doors,
+            }),
+            ...(updates.exterior.gutters !== undefined && {
+              gutters: updates.exterior.gutters,
+            }),
+            ...(updates.exterior.landscaping !== undefined && {
+              landscaping: updates.exterior.landscaping,
+            }),
+            ...(updates.exterior.fencing !== undefined && {
+              fencing: updates.exterior.fencing,
+            }),
+            ...(updates.exterior.driveway !== undefined && {
+              driveway: updates.exterior.driveway,
+            }),
+            ...(updates.exterior.notes !== undefined && {
+              notes: updates.exterior.notes,
+            }),
+          }
         : localNotes.exterior,
+
       additionalIssues: updates.additionalIssues
-        ? { ...localNotes.additionalIssues, ...updates.additionalIssues }
+        ? {
+            ...localNotes.additionalIssues,
+            ...(updates.additionalIssues.mold !== undefined && {
+              mold: updates.additionalIssues.mold,
+            }),
+            ...(updates.additionalIssues.moldDetails !== undefined && {
+              moldDetails: updates.additionalIssues.moldDetails,
+            }),
+            ...(updates.additionalIssues.termites !== undefined && {
+              termites: updates.additionalIssues.termites,
+            }),
+            ...(updates.additionalIssues.termitesDetails !== undefined && {
+              termitesDetails: updates.additionalIssues.termitesDetails,
+            }),
+            ...(updates.additionalIssues.waterDamage !== undefined && {
+              waterDamage: updates.additionalIssues.waterDamage,
+            }),
+            ...(updates.additionalIssues.waterDamageDetails !== undefined && {
+              waterDamageDetails: updates.additionalIssues.waterDamageDetails,
+            }),
+            ...(updates.additionalIssues.fireDamage !== undefined && {
+              fireDamage: updates.additionalIssues.fireDamage,
+            }),
+            ...(updates.additionalIssues.fireDamageDetails !== undefined && {
+              fireDamageDetails: updates.additionalIssues.fireDamageDetails,
+            }),
+            ...(updates.additionalIssues.structuralIssues !== undefined && {
+              structuralIssues: updates.additionalIssues.structuralIssues,
+            }),
+            ...(updates.additionalIssues.structuralIssuesDetails !==
+              undefined && {
+              structuralIssuesDetails:
+                updates.additionalIssues.structuralIssuesDetails,
+            }),
+            ...(updates.additionalIssues.codeViolations !== undefined && {
+              codeViolations: updates.additionalIssues.codeViolations,
+            }),
+            ...(updates.additionalIssues.codeViolationsDetails !==
+              undefined && {
+              codeViolationsDetails:
+                updates.additionalIssues.codeViolationsDetails,
+            }),
+            ...(updates.additionalIssues.other !== undefined && {
+              other: updates.additionalIssues.other,
+            }),
+          }
         : localNotes.additionalIssues,
+
       // Put the full response into generalNotes
       generalNotes: fullText,
+      lastUpdated: new Date().toISOString(),
     };
 
     setLocalNotes(updatedNotes);
-    setUnknownFields(newUnknownFields);
+
+    // Trigger auto-save with parsed data
+    handleChangeWithAutoSave(updatedNotes);
 
     // Count actual fields filled (non-empty values in updates)
     const fieldsFilledCount = Object.keys(updates).reduce((count, key) => {
-      if (updates[key] && typeof updates[key] === "object") {
+      const updateValue = (updates as any)[key];
+      if (updateValue && typeof updateValue === "object") {
         return (
           count +
-          Object.keys(updates[key]).filter(
-            (k) => updates[key][k] && updates[key][k] !== ""
+          Object.keys(updateValue).filter(
+            (k) => (updateValue as any)[k] && (updateValue as any)[k] !== ""
           ).length
         );
       }
@@ -270,7 +530,7 @@ export function RehabEstimateForm({
       toast.success(
         `Auto-filled ${fieldsFilledCount} field${
           fieldsFilledCount === 1 ? "" : "s"
-        }!`
+        } and saved changes!`
       );
       if (newUnknownFields.length > 0) {
         toast.info(
@@ -285,11 +545,48 @@ export function RehabEstimateForm({
     } else {
       toast.warning("No matching fields found in the text");
     }
-  };
+  }, [localNotes, parseText, handleChangeWithAutoSave]);
 
-  // Clear all rehab data
-  const handleClearRehabSection = () => {
-    // Get default notes structure from utils
+  const handleBathroomConditionChange = useCallback(
+    (val: string) => {
+      const bathroomCondition = val as
+        | "Excellent"
+        | "Good"
+        | "Poor"
+        | "Dated"
+        | "";
+
+      const updatedBathrooms: DealNotes["bathrooms"] =
+        localNotes.bathrooms.length > 0
+          ? localNotes.bathrooms.map((b) => ({
+              ...b,
+              condition: bathroomCondition,
+            }))
+          : [
+              {
+                location: "Bathroom 1",
+                condition: bathroomCondition,
+                vanity: "",
+                toilet: "",
+                tubShower: "",
+                tile: "",
+                notes: "",
+              },
+            ];
+
+      const updatedNotes = {
+        ...localNotes,
+        bathrooms: updatedBathrooms,
+        lastUpdated: new Date().toISOString(),
+      };
+
+      handleChangeWithAutoSave(updatedNotes);
+    },
+    [localNotes, handleChangeWithAutoSave]
+  );
+
+  // Enhanced clear rehab section handler
+  const handleClearRehabSection = useCallback(() => {
     const defaultNotes = getDefaultNotes();
 
     // Reset all local state
@@ -298,21 +595,85 @@ export function RehabEstimateForm({
     setEstimateResult(null);
     setConfidence(null);
     setCostRange(null);
-    setUnknownFields([]);
     setIsFinalized(false);
 
-    // Notify parent
-    onChange({
+    // Notify parent with cleared data
+    handleChangeWithAutoSave({
       ...defaultNotes,
       lastUpdated: new Date().toISOString(),
     });
 
     // Close dialog and show success
     setShowClearConfirmDialog(false);
-    toast.success(
-      "Rehab section cleared! All conditions, line items, and assumptions reset."
-    );
-  };
+    toast.success("Rehab section cleared and changes saved!");
+  }, [handleChangeWithAutoSave]);
+
+  // Enhanced line items change handler
+  const handleLineItemsChange = useCallback(
+    (newLineItems: LineItem[]) => {
+      setLineItems(newLineItems);
+
+      // Convert LineItem[] to DealNotes['lineItems'] type
+      const compatibleLineItems: DealNotes["lineItems"] = newLineItems.map(
+        (item) => ({
+          id: item.id,
+          category: item.category as
+            | "structural"
+            | "systems"
+            | "interior"
+            | "exterior",
+          description: item.description,
+          estimatedCost: item.estimatedCost,
+        })
+      );
+
+      // Update notes with new line items and trigger auto-save
+      const updatedNotes = {
+        ...localNotes,
+        lineItems: compatibleLineItems,
+        lastUpdated: new Date().toISOString(),
+      };
+
+      handleChangeWithAutoSave(updatedNotes);
+
+      // Notify parent of cost changes
+      if (onRehabCostChange) {
+        const totalCost = newLineItems.reduce(
+          (sum, item) => sum + item.estimatedCost,
+          0
+        );
+        onRehabCostChange(totalCost);
+      }
+    },
+    [localNotes, handleChangeWithAutoSave, onRehabCostChange]
+  );
+
+  // Enhanced finalize handler
+  const handleFinalizeScope = useCallback(() => {
+    setIsFinalized(true);
+
+    const updatedNotes = {
+      ...localNotes,
+      isScopeFinalized: true,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    handleChangeWithAutoSave(updatedNotes);
+    toast.success("Scope of work finalized and saved!");
+  }, [localNotes, handleChangeWithAutoSave]);
+
+  // Enhanced edit scope handler
+  const handleEditScope = useCallback(() => {
+    setIsFinalized(false);
+
+    const updatedNotes = {
+      ...localNotes,
+      isScopeFinalized: false,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    handleChangeWithAutoSave(updatedNotes);
+  }, [localNotes, handleChangeWithAutoSave]);
 
   // Sync isFinalized state when notes change (e.g., when loading saved deal)
   useEffect(() => {
@@ -326,19 +687,6 @@ export function RehabEstimateForm({
       onRehabCostChange(total);
     }
   }, [lineItems, onRehabCostChange]);
-
-  // Auto-save when notes or lineItems change (debounced)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onChange({
-        ...localNotes,
-        lineItems,
-        lastUpdated: new Date().toISOString(),
-      });
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [localNotes, lineItems]);
 
   // Update local notes and lineItems when parent notes change
   useEffect(() => {
@@ -364,7 +712,7 @@ export function RehabEstimateForm({
     }
   }, [lineItems, localNotes, totalSqft, units]);
 
-  // Apply smart defaults when roof year is entered
+  // Enhanced smart defaults application
   useEffect(() => {
     if (localNotes.roof.roofYear) {
       const { updatedNotes, appliedDefaults } = applySmartDefaults(
@@ -374,7 +722,13 @@ export function RehabEstimateForm({
 
       // Only update if defaults were actually applied
       if (appliedDefaults.length > 0) {
-        setLocalNotes(updatedNotes);
+        const notesWithDefaults = {
+          ...updatedNotes,
+          lastUpdated: new Date().toISOString(),
+        };
+
+        setLocalNotes(notesWithDefaults);
+        handleChangeWithAutoSave(notesWithDefaults);
 
         // Show subtle notification for applied defaults
         const warningDefaults = appliedDefaults.filter((d) => d.includes("⚠️"));
@@ -390,9 +744,9 @@ export function RehabEstimateForm({
         }
       }
     }
-  }, [localNotes.roof.roofYear, yearBuilt]);
+  }, [localNotes.roof.roofYear, yearBuilt, handleChangeWithAutoSave]);
 
-  // Auto-regenerate estimate when conditions change (if estimate already exists)
+  // Enhanced auto-regenerate estimate - fix the type issue
   useEffect(() => {
     // Only auto-regenerate if we've already generated an estimate at least once
     if (lineItems.length > 0) {
@@ -432,12 +786,35 @@ export function RehabEstimateForm({
           const mergedItems = [...generatedItems, ...customItems];
           setLineItems(mergedItems);
 
+          // Convert LineItem[] to DealNotes['lineItems'] type
+          const compatibleLineItems: DealNotes["lineItems"] = mergedItems.map(
+            (item) => ({
+              id: item.id,
+              category: item.category as
+                | "structural"
+                | "systems"
+                | "interior"
+                | "exterior",
+              description: item.description,
+              estimatedCost: item.estimatedCost,
+            })
+          );
+
           // Update the estimated rehab cost field
           const totalCost = mergedItems.reduce(
             (sum, item) => sum + item.estimatedCost,
             0
           );
-          updateField(["estimatedRehabCost"], formatCurrency(totalCost));
+
+          // Update notes with new estimate
+          const updatedNotes = {
+            ...localNotes,
+            estimatedRehabCost: formatCurrency(totalCost),
+            lineItems: compatibleLineItems,
+            lastUpdated: new Date().toISOString(),
+          };
+
+          handleChangeWithAutoSave(updatedNotes);
 
           // Notify parent component
           if (onRehabEstimateGenerated) {
@@ -470,23 +847,40 @@ export function RehabEstimateForm({
     localNotes.additionalIssues,
     totalSqft,
     units,
+    lineItems.length,
+    handleChangeWithAutoSave,
+    onRehabEstimateGenerated,
   ]);
 
-  const updateField = (path: string[], value: any) => {
-    setLocalNotes((prev) => {
-      const updated = { ...prev };
-      let current: any = updated;
+  // Enhanced updateField function with auto-save
+  const updateField = useCallback(
+    (path: string[], value: any) => {
+      setLocalNotes((prev) => {
+        const updated = { ...prev };
+        let current: any = updated;
 
-      for (let i = 0; i < path.length - 1; i++) {
-        current[path[i]] = { ...current[path[i]] };
-        current = current[path[i]];
-      }
+        for (let i = 0; i < path.length - 1; i++) {
+          current[path[i]] = { ...current[path[i]] };
+          current = current[path[i]];
+        }
 
-      current[path[path.length - 1]] = value;
-      return updated;
-    });
-  };
+        current[path[path.length - 1]] = value;
 
+        // Notify parent immediately
+        onChange(updated);
+
+        // Trigger auto-save
+        if (autoSaveEnabled && onAutoSaveTrigger) {
+          onAutoSaveTrigger();
+        }
+
+        return updated;
+      });
+    },
+    [onChange, onAutoSaveTrigger, autoSaveEnabled]
+  );
+
+  // Enhanced generate estimate handler - fix the type issue
   const handleGenerateEstimate = () => {
     try {
       const result = analyzePropertyCondition(localNotes, totalSqft, units);
@@ -496,12 +890,10 @@ export function RehabEstimateForm({
       const generatedItems = generateLineItems(localNotes, totalSqft, units);
 
       // Preserve custom line items (items that user added manually)
-      // Custom items are those not generated by the system
       const generatedCategories = new Set(
         generatedItems.map((item) => item.category)
       );
       const customItems = lineItems.filter((existingItem) => {
-        // Keep items with custom categories or items marked as custom
         const isCustomCategory = !generatedCategories.has(
           existingItem.category
         );
@@ -520,14 +912,37 @@ export function RehabEstimateForm({
       const mergedItems = [...generatedItems, ...customItems];
       setLineItems(mergedItems);
 
+      // Convert LineItem[] to DealNotes['lineItems'] type
+      const compatibleLineItems: DealNotes["lineItems"] = mergedItems.map(
+        (item) => ({
+          id: item.id,
+          category: item.category as
+            | "structural"
+            | "systems"
+            | "interior"
+            | "exterior",
+          description: item.description,
+          estimatedCost: item.estimatedCost,
+        })
+      );
+
       // Update the estimated rehab cost field (include custom items in total)
       const totalCost = mergedItems.reduce(
         (sum, item) => sum + item.estimatedCost,
         0
       );
-      updateField(["estimatedRehabCost"], formatCurrency(totalCost));
 
-      // Notify parent component
+      // Update notes with estimate and trigger auto-save
+      const updatedNotes = {
+        ...localNotes,
+        estimatedRehabCost: formatCurrency(totalCost),
+        lineItems: compatibleLineItems,
+        lastUpdated: new Date().toISOString(),
+      };
+
+      handleChangeWithAutoSave(updatedNotes);
+
+      // Notify parent components
       if (onRehabEstimateGenerated) {
         onRehabEstimateGenerated({
           ...result,
@@ -1035,7 +1450,9 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Roof Condition</Label>
               <Select
                 value={localNotes.roof.condition}
-                onValueChange={(val) => updateField(["roof", "condition"], val)}
+                onValueChange={(val: any) =>
+                  updateField(["roof", "condition"], val)
+                }
               >
                 <SelectTrigger
                   className={
@@ -1095,7 +1512,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Foundation</Label>
               <Select
                 value={localNotes.foundation.condition}
-                onValueChange={(val) =>
+                onValueChange={(val: any) =>
                   updateField(["foundation", "condition"], val)
                 }
               >
@@ -1121,7 +1538,9 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>HVAC System</Label>
               <Select
                 value={localNotes.hvac.condition}
-                onValueChange={(val) => updateField(["hvac", "condition"], val)}
+                onValueChange={(val: any) =>
+                  updateField(["hvac", "condition"], val)
+                }
               >
                 <SelectTrigger
                   className={
@@ -1152,7 +1571,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
                 </Label>
                 <Select
                   value={localNotes.hvac.systemType || ""}
-                  onValueChange={(val) =>
+                  onValueChange={(val: any) =>
                     updateField(["hvac", "systemType"], val)
                   }
                 >
@@ -1182,7 +1601,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Plumbing</Label>
               <Select
                 value={localNotes.plumbing.condition}
-                onValueChange={(val) =>
+                onValueChange={(val: any) =>
                   updateField(["plumbing", "condition"], val)
                 }
               >
@@ -1211,7 +1630,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
                 </Label>
                 <Select
                   value={localNotes.plumbing.pipeMaterial || ""}
-                  onValueChange={(val) =>
+                  onValueChange={(val: any) =>
                     updateField(["plumbing", "pipeMaterial"], val)
                   }
                 >
@@ -1238,7 +1657,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
                 </Label>
                 <Select
                   value={localNotes.plumbing.pipeAge || ""}
-                  onValueChange={(val) =>
+                  onValueChange={(val: any) =>
                     updateField(["plumbing", "pipeAge"], val)
                   }
                 >
@@ -1262,7 +1681,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Electrical</Label>
               <Select
                 value={localNotes.electrical.condition}
-                onValueChange={(val) =>
+                onValueChange={(val: any) =>
                   updateField(["electrical", "condition"], val)
                 }
               >
@@ -1290,7 +1709,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
                 </Label>
                 <Select
                   value={localNotes.electrical.panelAmperage || ""}
-                  onValueChange={(val) =>
+                  onValueChange={(val: any) =>
                     updateField(["electrical", "panelAmperage"], val)
                   }
                 >
@@ -1321,7 +1740,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Kitchen</Label>
               <Select
                 value={localNotes.kitchen.condition}
-                onValueChange={(val) =>
+                onValueChange={(val: any) =>
                   updateField(["kitchen", "condition"], val)
                 }
               >
@@ -1349,29 +1768,9 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Bathrooms (Overall)</Label>
               <Select
                 value={localNotes.bathrooms[0]?.condition || ""}
-                onValueChange={(val) => {
-                  const updatedBathrooms =
-                    localNotes.bathrooms.length > 0
-                      ? localNotes.bathrooms.map((b) => ({
-                          ...b,
-                          condition: val as any,
-                        }))
-                      : [
-                          {
-                            location: "Bathroom 1",
-                            condition: val as any,
-                            vanity: "",
-                            toilet: "",
-                            tubShower: "",
-                            tile: "",
-                            notes: "",
-                          },
-                        ];
-                  setLocalNotes((prev) => ({
-                    ...prev,
-                    bathrooms: updatedBathrooms,
-                  }));
-                }}
+                onValueChange={(val: string) =>
+                  handleBathroomConditionChange(val)
+                }
               >
                 <SelectTrigger
                   className={
@@ -1383,9 +1782,11 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Excellent">Excellent</SelectItem>
                   <SelectItem value="Good">Good</SelectItem>
-                  <SelectItem value="Dated">Dated</SelectItem>
+                  <SelectItem value="Fair">Fair</SelectItem>
                   <SelectItem value="Poor">Poor</SelectItem>
+                  <SelectItem value="Dated">Dated</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1394,14 +1795,12 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
             <div className="space-y-2">
               <Label>Flooring</Label>
               <Select
-                value={localNotes.interior.flooring}
-                onValueChange={(val) =>
-                  updateField(["interior", "flooring"], val)
-                }
+                value={localNotes.bathrooms[0]?.condition || ""}
+                onValueChange={handleBathroomConditionChange}
               >
                 <SelectTrigger
                   className={
-                    isFieldUnknown("Flooring")
+                    isFieldUnknown("Bathrooms")
                       ? "bg-yellow-100 border-yellow-400"
                       : ""
                   }
@@ -1409,11 +1808,10 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Excellent">Excellent</SelectItem>
                   <SelectItem value="Good">Good</SelectItem>
-                  <SelectItem value="Mixed">Mixed</SelectItem>
-                  <SelectItem value="Needs Replacement">
-                    Needs Replacement
-                  </SelectItem>
+                  <SelectItem value="Poor">Poor</SelectItem>
+                  <SelectItem value="Dated">Dated</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1423,7 +1821,9 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Walls & Paint</Label>
               <Select
                 value={localNotes.interior.walls}
-                onValueChange={(val) => updateField(["interior", "walls"], val)}
+                onValueChange={(val: any) =>
+                  updateField(["interior", "walls"], val)
+                }
               >
                 <SelectTrigger
                   className={
@@ -1447,7 +1847,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Appliances</Label>
               <Select
                 value={localNotes.kitchen.appliances}
-                onValueChange={(val) =>
+                onValueChange={(val: any) =>
                   updateField(["kitchen", "appliances"], val)
                 }
               >
@@ -1481,7 +1881,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Siding/Exterior</Label>
               <Select
                 value={localNotes.exterior.siding}
-                onValueChange={(val) =>
+                onValueChange={(val: any) =>
                   updateField(["exterior", "siding"], val)
                 }
               >
@@ -1507,7 +1907,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Windows</Label>
               <Select
                 value={localNotes.exterior.windows}
-                onValueChange={(val) =>
+                onValueChange={(val: any) =>
                   updateField(["exterior", "windows"], val)
                 }
               >
@@ -1537,7 +1937,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
                 </Label>
                 <Select
                   value={localNotes.exterior.windowsType || ""}
-                  onValueChange={(val) =>
+                  onValueChange={(val: any) =>
                     updateField(["exterior", "windowsType"], val)
                   }
                 >
@@ -1572,7 +1972,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
                 </Label>
                 <Select
                   value={localNotes.exterior.windowsCondition || ""}
-                  onValueChange={(val) =>
+                  onValueChange={(val: any) =>
                     updateField(["exterior", "windowsCondition"], val)
                   }
                 >
@@ -1600,7 +2000,9 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Doors</Label>
               <Select
                 value={localNotes.exterior.doors}
-                onValueChange={(val) => updateField(["exterior", "doors"], val)}
+                onValueChange={(val: any) =>
+                  updateField(["exterior", "doors"], val)
+                }
               >
                 <SelectTrigger
                   className={
@@ -1625,7 +2027,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <Label>Landscaping</Label>
               <Select
                 value={localNotes.exterior.landscaping}
-                onValueChange={(val) =>
+                onValueChange={(val: any) =>
                   updateField(["exterior", "landscaping"], val)
                 }
               >
@@ -1854,14 +2256,11 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
         <>
           <LineItemEditor
             lineItems={lineItems}
-            onChange={setLineItems}
+            onChange={handleLineItemsChange}
             totalSqft={totalSqft}
           />
           <Button
-            onClick={() => {
-              setIsFinalized(true);
-              updateField(["isScopeFinalized"], true);
-            }}
+            onClick={handleFinalizeScope}
             size="lg"
             className="w-full bg-green-600 hover:bg-green-700"
           >
@@ -1878,14 +2277,7 @@ Input: Paste the Zillow listing or MLS text below. ChatGPT will generate all six
               <CardTitle className="flex items-center gap-2">
                 Scope of Work - Finalized
               </CardTitle>
-              <Button
-                onClick={() => {
-                  setIsFinalized(false);
-                  updateField(["isScopeFinalized"], false);
-                }}
-                variant="outline"
-                size="sm"
-              >
+              <Button onClick={handleEditScope} variant="outline" size="sm">
                 Edit
               </Button>
             </div>

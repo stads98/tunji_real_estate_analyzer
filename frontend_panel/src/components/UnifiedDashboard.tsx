@@ -1290,6 +1290,14 @@ export function UnifiedDashboard({
       enabled: true,
     }
   );
+
+  // rehab save
+  const triggerAutoSave = useCallback(() => {
+    if (currentDealId) {
+      handleSaveDeal(true); // Trigger auto-save
+    }
+  }, [currentDealId, handleSaveDeal]);
+
   // Updated load deal function
   const handleLoadDeal = async (deal: SavedDeal) => {
     try {
@@ -3050,17 +3058,25 @@ export function UnifiedDashboard({
           /* Rehab Estimate Form - v256_change: Streamlined rehab-focused form */
           <RehabEstimateForm
             notes={inputs.notes || getDefaultNotes()}
-            onChange={handleNotesChange}
+            onChange={(newNotes) => {
+              // Update inputs with new notes
+              setInputs((prev) => ({
+                ...prev,
+                notes: newNotes,
+                lastUpdated: new Date().toISOString(),
+              }));
+            }}
             totalSqft={inputs.totalSqft}
             units={inputs.units}
             yearBuilt={inputs.yearBuilt}
             onRehabCostChange={(cost) => {
-              // Update rehab cost when line items change
+              // Auto-update rehab cost when line items change
               if (inputs.isRehab) {
                 setInputs((prev) => ({
                   ...prev,
                   rehabCost: cost,
                 }));
+                triggerAutoSave(); // Trigger auto-save on cost changes
               }
             }}
             onRehabEstimateGenerated={(estimate) => {
@@ -3071,8 +3087,13 @@ export function UnifiedDashboard({
                   rehabCost: estimate.estimatedCost,
                   rehabCondition: estimate.suggestedCondition,
                 }));
+                triggerAutoSave(); // Trigger auto-save on estimate generation
               }
             }}
+            // NEW: Auto-save integration
+            currentDealId={currentDealId}
+            onAutoSaveTrigger={triggerAutoSave}
+            autoSaveEnabled={true}
           />
         ) : mainView === "teamnotes" ? (
           /* Team Notes - Collaboration hub */
