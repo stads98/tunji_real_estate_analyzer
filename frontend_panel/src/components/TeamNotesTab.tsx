@@ -32,7 +32,6 @@ import {
   DialogTrigger,
 } from "./ui/dialog";
 import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
 import { toast } from "sonner";
 
 interface TeamNotesTabProps {
@@ -51,14 +50,11 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [creatingNote, setCreatingNote] = useState(false);
 
   // User settings
   const [user1Name, setUser1Name] = useState("Dan");
   const [user2Name, setUser2Name] = useState("Eman");
-  const [currentUser, setCurrentUser] = useState<"user1" | "user2">("user1"); // Add current user selection
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [newNote, setNewNote] = useState({ dealId: "", message: "" });
 
   useEffect(() => {
     loadNotes();
@@ -109,31 +105,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
     }
   };
 
-  const handleCreateNote = async () => {
-    if (!newNote.dealId || !newNote.message.trim()) {
-      toast.error("Please select a deal and enter a message");
-      return;
-    }
 
-    try {
-      setCreatingNote(true);
-      await dashboardService.createTeamNote({
-        dealId: newNote.dealId,
-        author: currentUser, // Use selected user instead of hardcoded "user1"
-        message: newNote.message.trim(),
-        isPinned: false,
-      });
-
-      setNewNote({ dealId: "", message: "" });
-      await loadNotes();
-      toast.success("Note created successfully");
-    } catch (error) {
-      console.error("Failed to create note:", error);
-      toast.error("Failed to create note");
-    } finally {
-      setCreatingNote(false);
-    }
-  };
 
   const handleDeleteNote = async (noteId: string) => {
     try {
@@ -371,80 +343,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
         </Dialog>
       </div>
 
-      {/* Create New Note */}
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="mb-3 font-medium">Add New Note</h3>
-        <div className="space-y-3">
-          {/* User Selection - NEW FIELD */}
-          <div className="space-y-2">
-            <Label htmlFor="author-select" className="text-sm font-medium">
-              Posting as:
-            </Label>
-            <Select
-              value={currentUser}
-              onValueChange={(value: "user1" | "user2") =>
-                setCurrentUser(value)
-              }
-            >
-              <SelectTrigger id="author-select" className="w-full">
-                <User className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Select user" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="user1">
-                  👤 {getAuthorName("user1")}
-                </SelectItem>
-                <SelectItem value="user2">
-                  👤 {getAuthorName("user2")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Select
-            value={newNote.dealId}
-            onValueChange={(value: any) =>
-              setNewNote({ ...newNote, dealId: value })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a deal" />
-            </SelectTrigger>
-            <SelectContent>
-              {savedDeals.map((deal) => (
-                <SelectItem key={deal.id} value={deal.id}>
-                  {deal.address}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Textarea
-            placeholder={`Write a note as ${getAuthorName(currentUser)}...`}
-            value={newNote.message}
-            onChange={(e) =>
-              setNewNote({ ...newNote, message: e.target.value })
-            }
-            rows={3}
-          />
-
-          <div className="flex justify-end">
-            <Button
-              onClick={handleCreateNote}
-              disabled={
-                creatingNote || !newNote.dealId || !newNote.message.trim()
-              }
-            >
-              {creatingNote ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <MessageSquare className="mr-2 h-4 w-4" />
-              )}
-              Add Note as {getAuthorName(currentUser)}
-            </Button>
-          </div>
-        </div>
-      </div>
+    
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
