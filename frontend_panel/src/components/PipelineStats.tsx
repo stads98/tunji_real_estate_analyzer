@@ -38,8 +38,8 @@ interface DateRange {
 export const PipelineStats: React.FC<PipelineStatsProps> = () => {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>("month");
   const [customRange, setCustomRange] = useState<DateRange>({
-    start: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000),
-    end: new Date(),
+    start: new Date(new Date().setDate(new Date().getDate() - 30)), // 30 days ago
+    end: new Date(), // Today (this should include time component)
   });
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -68,16 +68,31 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
     }
   };
 
-  // FIXED: Validate and handle start date change
+  //SIMPLIFIED: Get today's date properly
+  const getToday = () => {
+    return new Date(); // Return full date object, not stripped of time
+  };
+
+  // SIMPLIFIED: Handle start date change
   const handleStartDateChange = (dateString: string) => {
     const newStartDate = new Date(dateString);
-    const currentEndDate = customRange.end;
+    const today = new Date();
 
-    // If new start date is after current end date, adjust end date to be same as start date
-    if (newStartDate > currentEndDate) {
+    // Reset time components for proper comparison
+    newStartDate.setHours(0, 0, 0, 0);
+    const currentEnd = new Date(customRange.end);
+    currentEnd.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    if (newStartDate > today) {
+      toast.error("Start date cannot be in the future");
+      return;
+    }
+
+    if (newStartDate > currentEnd) {
       setCustomRange({
         start: newStartDate,
-        end: newStartDate,
+        end: newStartDate, // Set end to same as start
       });
     } else {
       setCustomRange({
@@ -87,13 +102,23 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
     }
   };
 
-  // FIXED: Validate and handle end date change
+  // SIMPLIFIED: Handle end date change
   const handleEndDateChange = (dateString: string) => {
     const newEndDate = new Date(dateString);
-    const currentStartDate = customRange.start;
+    const today = new Date();
 
-    // If new end date is before current start date, don't allow the change
-    if (newEndDate < currentStartDate) {
+    // Reset time components for proper comparison
+    newEndDate.setHours(0, 0, 0, 0);
+    const currentStart = new Date(customRange.start);
+    currentStart.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    if (newEndDate > today) {
+      toast.error("End date cannot be in the future");
+      return;
+    }
+
+    if (newEndDate < currentStart) {
       toast.error("End date cannot be before start date");
       return;
     }
@@ -104,14 +129,21 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
     });
   };
 
-  // FIXED: Get minimum allowed end date
+  // SIMPLIFIED: Date constraints
   const getMinEndDate = () => {
     return customRange.start.toISOString().split("T")[0];
   };
 
-  // FIXED: Get maximum allowed start date
+  const getMaxEndDate = () => {
+    return new Date().toISOString().split("T")[0]; // Today
+  };
+
   const getMaxStartDate = () => {
-    return customRange.end.toISOString().split("T")[0];
+    const today = new Date();
+    const endDate = new Date(customRange.end);
+    return endDate < today
+      ? customRange.end.toISOString().split("T")[0]
+      : today.toISOString().split("T")[0];
   };
 
   const formatCurrency = (value: number) => {
@@ -192,9 +224,12 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
                 id="start-date"
                 type="date"
                 value={customRange.start.toISOString().split("T")[0]}
-                max={getMaxStartDate()} // FIXED: Can't select start date after end date
+                max={getMaxStartDate()} // FIXED: Can't select start date after end date or today
                 onChange={(e) => handleStartDateChange(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                Earliest: No restriction
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="end-date">End Date</Label>
@@ -203,21 +238,35 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
                 type="date"
                 value={customRange.end.toISOString().split("T")[0]}
                 min={getMinEndDate()} // FIXED: Can't select end date before start date
+                max={getMaxEndDate()} // FIXED: Can't select end date after today
                 onChange={(e) => handleEndDateChange(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                Latest: Today ({getToday().toLocaleDateString()})
+              </p>
             </div>
           </div>
           {/* FIXED: Show validation message if dates are invalid */}
-          {customRange.start > customRange.end && (
+          {(customRange.start > customRange.end ||
+            customRange.end > getToday()) && (
             <div className="mt-2 text-sm text-red-600">
-              ⚠️ End date cannot be before start date
+              {customRange.start > customRange.end &&
+                "⚠️ End date cannot be before start date"}
+              {customRange.start > customRange.end &&
+                customRange.end > getToday() &&
+                " • "}
+              {customRange.end > getToday() &&
+                "⚠️ End date cannot be in the future"}
             </div>
           )}
           <div className="mt-3 flex justify-end">
             <Button
               onClick={loadStats}
               size="sm"
-              disabled={customRange.start > customRange.end} // FIXED: Disable if invalid
+              disabled={
+                customRange.start > customRange.end ||
+                customRange.end > getToday()
+              } // FIXED: Disable if invalid
             >
               Apply Date Range
             </Button>
