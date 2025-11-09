@@ -302,6 +302,67 @@ class DealController {
       });
     }
   }
+
+  // Add this method to your existing DealController class
+  async bulkCreateDealsWithStaging(req, res) {
+    try {
+      const { properties } = req.body;
+
+      if (!Array.isArray(properties) || properties.length === 0) {
+        return sendResponse(res, 400, {
+          status: STATUS.FAILED,
+          message: "Properties array is required and cannot be empty",
+        });
+      }
+
+      // Validate maximum bulk import size
+      if (properties.length > 100) {
+        return sendResponse(res, 400, {
+          status: STATUS.FAILED,
+          message: "Cannot import more than 100 properties at once",
+        });
+      }
+
+      // Validate required fields for each property
+      const validationErrors = [];
+      properties.forEach((property, index) => {
+        if (!property.address) {
+          validationErrors.push(`Property ${index + 1}: address is required`);
+        }
+        if (!property.price || property.price <= 0) {
+          validationErrors.push(
+            `Property ${index + 1}: valid price is required`
+          );
+        }
+      });
+
+      if (validationErrors.length > 0) {
+        return sendResponse(res, 400, {
+          status: STATUS.FAILED,
+          message: "Validation errors",
+          errors: validationErrors,
+        });
+      }
+
+      const result = await dealService.bulkCreateDealsWithStaging(properties);
+
+      return sendResponse(res, 201, {
+        status: STATUS.SUCCESS,
+        data: result,
+        message: `${result.length} deals imported successfully in Stage 1`,
+      });
+    } catch (error) {
+      await logger.error(error, {
+        controller: "DealController",
+        method: "bulkCreateDealsWithStaging",
+      });
+
+      return sendResponse(res, 500, {
+        status: STATUS.FAILED,
+        message: error.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+      });
+    }
+  }
 }
 
 const dealController = new DealController();

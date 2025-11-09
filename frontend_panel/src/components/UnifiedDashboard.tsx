@@ -121,7 +121,6 @@ import {
 import { DealNotes as DealNotesComp } from "./DealNotes";
 import { getStageInfo, getStagesByPhase } from "../utils/dealStages";
 import {
-  addSystemNote,
   getNotesForDeal,
   loadTeamNotes,
 } from "../utils/teamNotesStorage";
@@ -659,72 +658,96 @@ export function UnifiedDashboard({
   };
 
   // Handler for changing deal stage
-  const handleStageChange = (dealId: string, newStage: DealStage) => {
-    // Get the old stage before updating
-    const deal = savedDeals.find((d) => d.id === dealId);
-    const oldStage = deal?.dealStage;
+  const handleStageChange = async (dealId: string, newStage: DealStage) => {
+    try {
+      // Get the old stage before updating
+      const deal = savedDeals.find((d) => d.id === dealId);
+      const oldStage = deal?.dealStage;
 
-    setSavedDeals((deals) =>
-      deals.map((deal) =>
-        deal.id === dealId
-          ? {
-              ...deal,
-              dealStage: newStage,
-              stageUpdatedAt: new Date().toISOString(),
-            }
-          : deal
-      )
-    );
+      // Update deal stage via API - use proper type casting
+      await dashboardService.updateDeal(dealId, {
+        ...deal, // Include all existing deal data
+        dealStage: newStage,
+        stageUpdatedAt: new Date().toISOString(),
+      } as Partial<DealInputs> & { dealStage: DealStage; stageUpdatedAt: string });
 
-    // Add system note for stage change
-    if (oldStage && oldStage !== newStage) {
-      const oldStageInfo = getStageInfo(oldStage);
-      const newStageInfo = getStageInfo(newStage);
+      // Update local state
+      setSavedDeals((deals) =>
+        deals.map((deal) =>
+          deal.id === dealId
+            ? {
+                ...deal,
+                dealStage: newStage,
+                stageUpdatedAt: new Date().toISOString(),
+              }
+            : deal
+        )
+      );
 
-      // Special tracking for Stage 5 (Ready for Max Offer)
-      if (newStage === "stage5-offer-submitted") {
-        // Calculate days in pipeline (from creation to now)
-        let daysInPipeline = 0;
-        if (deal?.createdAt) {
-          const created = new Date(deal.createdAt);
-          const now = new Date();
-          daysInPipeline = Math.floor(
-            (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)
-          );
+      // Add system note for stage change
+      if (oldStage && oldStage !== newStage) {
+        const oldStageInfo = getStageInfo(oldStage);
+        const newStageInfo = getStageInfo(newStage);
+
+        // Special tracking for Stage 5 (Ready for Max Offer)
+        if (newStage === "stage5-offer-submitted") {
+          // Calculate days in pipeline (from creation to now)
+          let daysInPipeline = 0;
+          if (deal?.createdAt) {
+            const created = new Date(deal.createdAt);
+            const now = new Date();
+            daysInPipeline = Math.floor(
+              (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)
+            );
+          }
+
+          // Get days on Zillow (from deal data)
+          const daysOnZillow = deal?.daysOnMarket || 0;
+
+          // Build message with tracking info
+          let message = `Stage updated: ${oldStageInfo.label} → ${newStageInfo.label}`;
+
+          // Add pipeline time tracking
+          if (daysInPipeline > 0) {
+            message += ` | Processed in ${daysInPipeline} day${
+              daysInPipeline !== 1 ? "s" : ""
+            }`;
+          }
+
+          // Add Zillow listing time
+          if (daysOnZillow > 0) {
+            message += ` | Listed ${daysOnZillow} day${
+              daysOnZillow !== 1 ? "s" : ""
+            } on Zillow`;
+          }
+
+          // Create system note via API
+          await dashboardService.createTeamNote({
+            dealId,
+            author: "system",
+            message,
+            isPinned: false,
+            isSystemNote: true,
+            changeType: "stage",
+          });
+        } else {
+          // Standard stage change note
+          await dashboardService.createTeamNote({
+            dealId,
+            author: "system",
+            message: `Stage updated: ${oldStageInfo.label} → ${newStageInfo.label}`,
+            isPinned: false,
+            isSystemNote: true,
+            changeType: "stage",
+          });
         }
-
-        // Get days on Zillow (from deal data)
-        const daysOnZillow = deal?.daysOnMarket || 0;
-
-        // Build message with tracking info
-        let message = `Stage updated: ${oldStageInfo.label} → ${newStageInfo.label}`;
-
-        // Add pipeline time tracking
-        if (daysInPipeline > 0) {
-          message += ` | Processed in ${daysInPipeline} day${
-            daysInPipeline !== 1 ? "s" : ""
-          }`;
-        }
-
-        // Add Zillow listing time
-        if (daysOnZillow > 0) {
-          message += ` | Listed ${daysOnZillow} day${
-            daysOnZillow !== 1 ? "s" : ""
-          } on Zillow`;
-        }
-
-        addSystemNote(dealId, message, "stage");
-      } else {
-        // Standard stage change note
-        addSystemNote(
-          dealId,
-          `Stage updated: ${oldStageInfo.label} → ${newStageInfo.label}`,
-          "stage"
-        );
       }
-    }
 
-    toast.success(`Stage updated to: ${getStageInfo(newStage).label}`);
+      toast.success(`Stage updated to: ${getStageInfo(newStage).label}`);
+    } catch (error) {
+      console.error("Failed to update deal stage:", error);
+      toast.error("Failed to update deal stage");
+    }
   };
 
   const handleNotesChange = (notes: DealNotes) => {
@@ -1522,142 +1545,33 @@ export function UnifiedDashboard({
   };
 
   // Bulk Paste Handler - creates multiple deals in Stage 1
-  const handleBulkImport = (properties: BulkProperty[]) => {
+  const handleBulkImport = async (properties: BulkProperty[]) => {
     if (properties.length === 0) {
       toast.error("No properties to import");
       return;
     }
 
-    const newDeals: SavedDeal[] = properties.map((property) => {
-      // Create base inputs with defaults
-      const baseInputs: DealInputs = {
-        // Address & Property Details
-        address: property.address,
-        purchasePrice: property.price, // FIXED: Only declare once
-        units: 1, // Default to 1, user can change
-        unitDetails: [
-          {
-            beds: property.beds || 0,
-            baths: property.baths || 0,
-            sqft: property.sqft || 0,
-            section8Rent: 0, // Will auto-populate when zip is extracted
-            strMonthlyRevenue: 0,
-          },
-        ],
-        totalSqft: property.sqft || 0,
-        yearBuilt: 0, // User to fill
+    try {
+      // Use the enhanced bulk import service
+      const response = await dashboardService.bulkImportDealsWithStaging(
+        properties
+      );
 
-        // Financial Details - REMOVED duplicate purchasePrice
-        maxOffer: undefined,
-        isOffMarket: false,
-        strADR: 0, // DEPRECATED but required
+      // Refresh deals list
+      await loadDealsFromAPI();
 
-        // Property Expenses
-        propertyTaxes: Math.round(property.price * 0.02), // 2% Broward County
-        propertyInsurance: calculateCurrentInsurance(property.price, 2000), // Default year
-        hasHurricaneWindows: false,
-        hasNewRoof: false,
-
-        // Loan Details
-        loanInterestRate: 7.5,
-        loanTerm: 30,
-        downPayment: 25,
-        acquisitionCosts: 5, // Percentage default
-        acquisitionCostsAmount: Math.round(property.price * 0.05), // 5% default
-        setupFurnishCost: 0,
-
-        // Renovation/Rehab fields - FIXED: Use valid rehabCondition
-        isRehab: false,
-        rehabUnitType: "single",
-        rehabCondition: "light", // FIXED: Changed from "turnkey" to valid value
-        rehabCost: 0,
-        rehabMonths: 6,
-        rehabFinancingRate: 0,
-        rehabEntryPoints: 0,
-        rehabExitPoints: 0,
-
-        // Bridge Loan Parameters
-        bridgeLTC: 90,
-        bridgeRehabBudgetPercent: 100,
-        bridgeMaxARLTV: 70,
-
-        // Exit Refi Parameters
-        exitStrategy: "refi",
-        exitRefiLTV: 75,
-        exitRefiRate: 7.5,
-
-        // ARV & Rehab Property Expenses
-        afterRepairValue: 0,
-        rehabPropertyTaxes: 0,
-        rehabPropertyInsurance: 0,
-        sellClosingCosts: 3,
-
-        // Settlement Charges
-        bridgeSettlementCharges: Math.round(property.price * 0.06),
-        dscrAcquisitionCosts: 0,
-
-        // Property notes and assessment
-        notes: getDefaultNotes(),
-
-        // Photos & ARV
-        photos: [],
-        arvComps: [],
-        calculatedARV: 0,
-
-        // Optional fields
-        subjectLat: undefined,
-        subjectLng: undefined,
-        subjectPropertyDescription: undefined,
-        subjectPropertyZillowLink: undefined,
-      };
-
-      // Auto-populate Section 8 if we can extract zip
-      const zipCode = extractZipCode(property.address);
-      if (zipCode && property.beds) {
-        const s8Rent = getSection8Rent(
-          property.beds,
-          zipCode,
-          globalAssumptions.section8ZipData
-        );
-        if (s8Rent) {
-          baseInputs.unitDetails[0].section8Rent = s8Rent;
+      toast.success(
+        `🎯 Imported ${response.data.length} deal${
+          response.data.length > 1 ? "s" : ""
+        } in Stage 1!`,
+        {
+          description: "Ready for Eman to add data & comps",
         }
-      }
-
-      const now = new Date().toISOString();
-
-      // FIXED: Create proper SavedDeal with all required fields
-      const savedDeal: SavedDeal = {
-        ...baseInputs,
-        id:
-          Date.now().toString() + "-" + Math.random().toString(36).substr(2, 9),
-        savedAt: now,
-        schemaVersion: DEAL_SCHEMA_VERSION, // FIXED: Use the constant
-        createdAt: now,
-        dealStage: "stage1-basic-data",
-        stageUpdatedAt: now,
-
-        // Optional fields with defaults
-        daysOnMarket: undefined,
-        isCompleted: undefined,
-        completedAt: undefined,
-        teamNotes: [],
-      };
-
-      return savedDeal;
-    });
-
-    // Add all deals at once
-    setSavedDeals((prev) => [...prev, ...newDeals]);
-
-    toast.success(
-      `🎯 Imported ${newDeals.length} deal${
-        newDeals.length > 1 ? "s" : ""
-      } in Stage 1!`,
-      {
-        description: "Ready for Eman to add data & comps",
-      }
-    );
+      );
+    } catch (error) {
+      console.error("Failed to bulk import deals:", error);
+      toast.error("Failed to import deals");
+    }
   };
 
   // Enhanced import deals function
@@ -3612,6 +3526,8 @@ export function UnifiedDashboard({
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
+
+                                    {/* ERROR FROM BACKEND */}
                                     <Select
                                       value={
                                         deal.dealStage || "stage1-basic-data"

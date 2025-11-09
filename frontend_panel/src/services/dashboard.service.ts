@@ -652,7 +652,7 @@ class DashboardService {
     message: string;
   }> {
     try {
-      const response = await this.api.get("/api/user-settings");
+      const response = await this.api.get("/api/team-notes/user-settings");
       return response.data;
     } catch (error) {
       throw this.handleError(error as AxiosError<ErrorResponse>);
@@ -664,7 +664,10 @@ class DashboardService {
     settings: UserSettings
   ): Promise<{ status: string; data: UserSettings; message: string }> {
     try {
-      const response = await this.api.put("/api/user-settings", settings);
+      const response = await this.api.put(
+        "/api/team-notes/user-settings",
+        settings
+      );
       return response.data;
     } catch (error) {
       throw this.handleError(error as AxiosError<ErrorResponse>);

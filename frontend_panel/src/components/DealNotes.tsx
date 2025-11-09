@@ -1,22 +1,18 @@
-import React, { useState } from 'react';
-import { MessageSquare, Pin, Trash2, Send } from 'lucide-react';
-import { TeamNote } from '../types/deal';
-import {
-  getNotesForDeal,
-  addTeamNote,
-  deleteTeamNote,
-  togglePinNote,
-  getAuthorName,
-} from '../utils/teamNotesStorage';
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
-import { Badge } from './ui/badge';
-import { Label } from './ui/label';
+// src/components/DealNotes.tsx
+import React, { useState, useEffect } from "react";
+import { MessageSquare, Pin, Trash2, Send, Loader2 } from "lucide-react";
+import { TeamNote } from "../types/deal";
+import { dashboardService } from "../services/dashboard.service";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
+import { Badge } from "./ui/badge";
+import { Label } from "./ui/label";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from './ui/collapsible';
+} from "./ui/collapsible";
+import { toast } from "sonner";
 
 interface DealNotesProps {
   dealId: string;
@@ -28,31 +24,115 @@ export const DealNotes: React.FC<DealNotesProps> = ({
   onNotesChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [notes, setNotes] = useState<TeamNote[]>(() => getNotesForDeal(dealId));
-  const [newMessage, setNewMessage] = useState('');
-  const [currentUser, setCurrentUser] = useState<'user1' | 'user2'>('user1');
+  const [notes, setNotes] = useState<TeamNote[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [currentUser, setCurrentUser] = useState<"user1" | "user2">("user1");
+  const [loading, setLoading] = useState(false);
+  const [addingNote, setAddingNote] = useState(false);
+  const [userSettings, setUserSettings] = useState({
+    user1Name: "Dan",
+    user2Name: "Eman",
+  });
+
+  // Load notes and user settings
+  useEffect(() => {
+    if (isOpen && dealId) {
+      loadNotes();
+      loadUserSettings();
+    }
+  }, [isOpen, dealId]);
+
+  const loadNotes = async () => {
+    try {
+      setLoading(true);
+      const response = await dashboardService.getTeamNotes({
+        dealId,
+        sortBy: "newest",
+      });
+      setNotes(response.data);
+    } catch (error) {
+      console.error("Failed to load notes:", error);
+      toast.error("Failed to load notes");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserSettings = async () => {
+    try {
+      const response = await dashboardService.getUserSettings();
+      setUserSettings(response.data);
+    } catch (error) {
+      console.error("Failed to load user settings:", error);
+    }
+  };
 
   const refreshNotes = () => {
-    setNotes(getNotesForDeal(dealId));
+    loadNotes();
     onNotesChange?.();
   };
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!newMessage.trim()) return;
 
-    addTeamNote(dealId, currentUser, newMessage);
-    setNewMessage('');
-    refreshNotes();
+    try {
+      setAddingNote(true);
+      await dashboardService.createTeamNote({
+        dealId,
+        author: currentUser,
+        message: newMessage.trim(),
+        isPinned: false,
+      });
+
+      setNewMessage("");
+      refreshNotes();
+      toast.success("Note added successfully");
+    } catch (error) {
+      console.error("Failed to add note:", error);
+      toast.error("Failed to add note");
+    } finally {
+      setAddingNote(false);
+    }
   };
 
-  const handleDeleteNote = (noteId: string) => {
-    deleteTeamNote(noteId);
-    refreshNotes();
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await dashboardService.deleteTeamNote(noteId);
+      refreshNotes();
+      toast.success("Note deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete note:", error);
+      toast.error("Failed to delete note");
+    }
   };
 
-  const handleTogglePin = (noteId: string) => {
-    togglePinNote(noteId);
-    refreshNotes();
+  const handleTogglePin = async (noteId: string) => {
+    try {
+      const note = notes.find((n) => n.id === noteId);
+      if (note) {
+        await dashboardService.updateTeamNote(noteId, {
+          isPinned: !note.isPinned,
+        });
+        refreshNotes();
+        toast.success(note.isPinned ? "Note unpinned" : "Note pinned");
+      }
+    } catch (error) {
+      console.error("Failed to update note:", error);
+      toast.error("Failed to update note");
+    }
+  };
+
+  const getAuthorName = (author: string): string => {
+    switch (author) {
+      case "user1":
+        return userSettings.user1Name || "Dan";
+      case "user2":
+        return userSettings.user2Name || "Eman";
+      case "system":
+        return "System";
+      default:
+        return author;
+    }
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -63,14 +143,14 @@ export const DealNotes: React.FC<DealNotesProps> = ({
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
+    if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
 
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -83,7 +163,11 @@ export const DealNotes: React.FC<DealNotesProps> = ({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
-        <Button variant="ghost" size="sm" className="w-full justify-start gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2"
+        >
           <MessageSquare className="h-4 w-4" />
           <span>Notes</span>
           {notes.length > 0 && (
@@ -101,21 +185,23 @@ export const DealNotes: React.FC<DealNotesProps> = ({
             <Label className="text-sm font-medium">Posting as:</Label>
             <select
               value={currentUser}
-              onChange={e => setCurrentUser(e.target.value as 'user1' | 'user2')}
+              onChange={(e) =>
+                setCurrentUser(e.target.value as "user1" | "user2")
+              }
               className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm font-medium"
             >
-              <option value="user1">👤 {getAuthorName('user1')} (Dan)</option>
-              <option value="user2">👤 {getAuthorName('user2')} (Eman)</option>
+              <option value="user1">👤 {getAuthorName("user1")}</option>
+              <option value="user2">👤 {getAuthorName("user2")}</option>
             </select>
           </div>
 
           <Textarea
             value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
+            onChange={(e) => setNewMessage(e.target.value)}
             placeholder={`Write a note as ${getAuthorName(currentUser)}...`}
             className="min-h-[60px] resize-none"
-            onKeyDown={e => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 handleAddNote();
               }
             }}
@@ -124,26 +210,34 @@ export const DealNotes: React.FC<DealNotesProps> = ({
           <Button
             onClick={handleAddNote}
             size="sm"
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() || addingNote}
             className="w-full"
           >
-            <Send className="mr-2 h-4 w-4" />
+            {addingNote ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="mr-2 h-4 w-4" />
+            )}
             Add Note as {getAuthorName(currentUser)}
           </Button>
         </div>
 
         {/* Notes List */}
-        {sortedNotes.length > 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : sortedNotes.length > 0 ? (
           <div className="space-y-2">
-            {sortedNotes.map(note => (
+            {sortedNotes.map((note) => (
               <div
                 key={note.id}
                 className={`relative rounded-lg border p-3 ${
                   note.isPinned
-                    ? 'border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20'
+                    ? "border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20"
                     : note.isSystemNote
-                      ? 'border-slate-300 bg-slate-50/50'
-                      : 'border-border bg-background'
+                    ? "border-slate-300 bg-slate-50/50"
+                    : "border-border bg-background"
                 }`}
               >
                 {note.isPinned && (
@@ -162,16 +256,19 @@ export const DealNotes: React.FC<DealNotesProps> = ({
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center gap-2">
                       <Badge
-                        variant={note.author === 'user1' ? 'default' : 'secondary'}
+                        variant={
+                          note.author === "user1" ? "default" : "secondary"
+                        }
                         className={`text-xs font-semibold ${
                           note.isSystemNote
-                            ? 'bg-slate-500 text-white'
-                            : note.author === 'user1' 
-                              ? 'bg-blue-600 text-white' 
-                              : 'bg-purple-600 text-white'
+                            ? "bg-slate-500 text-white"
+                            : note.author === "user1"
+                            ? "bg-blue-600 text-white"
+                            : "bg-purple-600 text-white"
                         }`}
                       >
-                        {note.isSystemNote ? '🔒' : '👤'} {getAuthorName(note?.author)}
+                        {note.isSystemNote ? "🔒" : "👤"}{" "}
+                        {getAuthorName(note.author)}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {formatTimestamp(note.timestamp)}
@@ -188,11 +285,11 @@ export const DealNotes: React.FC<DealNotesProps> = ({
                           size="sm"
                           onClick={() => handleTogglePin(note.id)}
                           className="h-7 w-7 p-0"
-                          title={note.isPinned ? 'Unpin' : 'Pin'}
+                          title={note.isPinned ? "Unpin" : "Pin"}
                         >
                           <Pin
                             className={`h-3.5 w-3.5 ${
-                              note.isPinned ? 'fill-current text-amber-600' : ''
+                              note.isPinned ? "fill-current text-amber-600" : ""
                             }`}
                           />
                         </Button>

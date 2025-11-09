@@ -16,7 +16,7 @@ const {
   importAssumptionsValidation,
   zipCodeParamValidation,
   getSection8RentValidation,
-} = require("../../validators/validators");
+} = require("../../validators/deal.validators");
 
 // ========== DEAL ROUTES ==========
 
@@ -87,5 +87,10 @@ router
 router
   .route("/assumptions/import")
   .post(importAssumptionsValidation, assumptionsController.importAssumptions);
+
+// Add this route to your existing deal routes
+router
+  .route("/bulk-with-staging")
+  .post( dealController.bulkCreateDealsWithStaging);
 
 module.exports = router;

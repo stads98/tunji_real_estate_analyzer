@@ -211,10 +211,6 @@ const updateDealValidation = [
     .optional()
     .isFloat({ min: 0 })
     .withMessage("Total square footage must be a positive number"),
-  body("yearBuilt")
-    .optional()
-    .isInt({ min: 1800, max: new Date().getFullYear() })
-    .withMessage("Invalid year built"),
   body("purchasePrice")
     .optional()
     .isFloat({ min: 0 })

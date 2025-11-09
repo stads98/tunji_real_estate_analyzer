@@ -2,23 +2,30 @@
 const express = require("express");
 const router = express.Router();
 const teamNotesController = require("../../controllers/team-notes.controller");
+const {
+  getTeamNotesValidation,
+  createTeamNoteValidation,
+  updateTeamNoteValidation,
+  deleteTeamNoteValidation,
+  updateUserSettingsValidation,
+} = require("../../validators/team.validators");
 
 // Team notes routes
 router
   .route("/")
-  .get(teamNotesController.getTeamNotes)
-  .post(teamNotesController.createTeamNote)
+  .get(getTeamNotesValidation, teamNotesController.getTeamNotes)
+  .post(createTeamNoteValidation, teamNotesController.createTeamNote)
   .delete(teamNotesController.deleteAllTeamNotes);
 
 router
   .route("/:id")
-  .patch(teamNotesController.updateTeamNote)
-  .delete(teamNotesController.deleteTeamNote);
+  .patch(updateTeamNoteValidation, teamNotesController.updateTeamNote)
+  .delete(deleteTeamNoteValidation, teamNotesController.deleteTeamNote);
 
 // User settings routes
 router
   .route("/user-settings")
   .get(teamNotesController.getUserSettings)
-  .put(teamNotesController.updateUserSettings);
+  .put(updateUserSettingsValidation, teamNotesController.updateUserSettings);
 
 module.exports = router;

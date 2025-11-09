@@ -332,6 +332,168 @@ class DealService {
       throw error;
     }
   }
+
+  // Add this method to your existing DealService class
+  async bulkCreateDealsWithStaging(properties) {
+    try {
+      // Transform properties into full deal objects with Stage 1 default
+      const dealsWithStaging = properties.map((property, index) => ({
+        address: property.address,
+        units: 1, // Default to 1 unit
+        unitDetails: [
+          {
+            beds: property.beds || 0,
+            baths: property.baths || 0,
+            sqft: property.sqft || 0,
+            section8Rent: 0, // Will auto-populate when zip is extracted
+            marketRent: 0,
+          },
+        ],
+        totalSqft: property.sqft || 0,
+        yearBuilt: 0, // User to fill
+        purchasePrice: property.price || 0,
+        isOffMarket: false,
+        propertyTaxes: Math.round((property.price || 0) * 0.02),
+        propertyInsurance: 0, // Will calculate based on defaults
+        loanInterestRate: 7.5,
+        loanTerm: 30,
+        downPayment: 25,
+        acquisitionCosts: 5,
+        acquisitionCostsAmount: Math.round((property.price || 0) * 0.05),
+        setupFurnishCost: 0,
+        isRehab: false,
+        rehabUnitType: "single",
+        rehabCondition: "light",
+        rehabCost: 0,
+        rehabMonths: 6,
+        rehabFinancingRate: 0,
+        rehabEntryPoints: 0,
+        rehabExitPoints: 0,
+        bridgeLTC: 90,
+        bridgeRehabBudgetPercent: 100,
+        bridgeMaxARLTV: 70,
+        exitStrategy: "refi",
+        exitRefiLTV: 75,
+        exitRefiRate: 7.5,
+        afterRepairValue: 0,
+        rehabPropertyTaxes: 0,
+        rehabPropertyInsurance: 0,
+        sellClosingCosts: 3,
+        bridgeSettlementCharges: Math.round((property.price || 0) * 0.06),
+        dscrAcquisitionCosts: 0,
+        strADR: 125, // DEPRECATED but required
+        dealStage: "stage1-basic-data", // Auto-set to Stage 1
+        stageUpdatedAt: new Date().toISOString(),
+        notes: this.getDefaultNotes(),
+        photos: [],
+        arvComps: [],
+        calculatedARV: 0,
+        schemaVersion: 3,
+      }));
+
+      const result = await Deal.insertMany(dealsWithStaging);
+
+      await logger.info("Bulk deals created with staging", {
+        service: "DealService",
+        method: "bulkCreateDealsWithStaging",
+        count: result.length,
+        autoStage: "stage1-basic-data",
+      });
+
+      return result;
+    } catch (error) {
+      await logger.error(error, {
+        service: "DealService",
+        method: "bulkCreateDealsWithStaging",
+        propertyCount: properties.length,
+      });
+      throw error;
+    }
+  }
+
+  // Add this helper method
+  getDefaultNotes() {
+    return {
+      realtorName: "",
+      realtorPhone: "",
+      realtorEmail: "",
+      realtorNotes: "",
+      sellerMotivation: "",
+      overallCondition: "",
+      estimatedRehabCost: "",
+      roof: { condition: "", age: "", leaks: false, notes: "" },
+      foundation: { condition: "", notes: "" },
+      hvac: {
+        condition: "",
+        age: "",
+        systemType: "",
+        numberOfUnits: "",
+        notes: "",
+      },
+      plumbing: {
+        condition: "",
+        pipeMaterial: "",
+        pipeAge: "",
+        waterHeater: "",
+        leaks: false,
+        notes: "",
+      },
+      electrical: {
+        condition: "",
+        panelSize: "",
+        panelAmperage: "",
+        wiringType: "",
+        notes: "",
+      },
+      exterior: {
+        siding: "",
+        sidingType: "",
+        windows: "",
+        doors: "",
+        gutters: "",
+        landscaping: "",
+        fencing: "",
+        driveway: "",
+        notes: "",
+      },
+      kitchen: {
+        condition: "",
+        cabinets: "",
+        countertops: "",
+        appliances: "",
+        flooring: "",
+        notes: "",
+      },
+      bathrooms: [],
+      bedrooms: [],
+      interior: {
+        flooring: "",
+        walls: "",
+        ceilings: "",
+        lighting: "",
+        openFloorPlan: false,
+        notes: "",
+      },
+      pool: { hasPool: false, condition: "", equipment: "", notes: "" },
+      additionalIssues: {
+        mold: false,
+        moldDetails: "",
+        termites: false,
+        termitesDetails: "",
+        waterDamage: false,
+        waterDamageDetails: "",
+        fireDamage: false,
+        fireDamageDetails: "",
+        structuralIssues: false,
+        structuralIssuesDetails: "",
+        codeViolations: false,
+        codeViolationsDetails: "",
+        other: "",
+      },
+      generalNotes: "",
+      lastUpdated: new Date().toISOString(),
+    };
+  }
 }
 
 module.exports = new DealService();

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// src/components/TeamNotesTab.tsx
+import React, { useState, useEffect } from "react";
 import {
   MessageSquare,
   Pin,
@@ -8,35 +9,30 @@ import {
   SortDesc,
   Settings,
   Calendar,
-} from 'lucide-react';
-import { TeamNote, SavedDeal } from '../types/deal';
-import {
-  getAllNotesSorted,
-  deleteTeamNote,
-  togglePinNote,
-  getAuthorName,
-  loadUserSettings,
-  saveUserSettings,
-  clearAllTeamNotes,
-} from '../utils/teamNotesStorage';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Input } from './ui/input';
+  Loader2,
+} from "lucide-react";
+import { TeamNote, SavedDeal } from "../types/deal";
+import { dashboardService } from "../services/dashboard.service";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Input } from "./ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from './ui/select';
+} from "./ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from './ui/dialog';
-import { Label } from './ui/label';
+} from "./ui/dialog";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import { toast } from "sonner";
 
 interface TeamNotesTabProps {
   savedDeals: SavedDeal[];
@@ -44,73 +40,156 @@ interface TeamNotesTabProps {
 
 export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
   const [notes, setNotes] = useState<TeamNote[]>([]);
-  const [filterDeal, setFilterDeal] = useState<string>('all');
-  const [filterAuthor, setFilterAuthor] = useState<string>('all');
-  const [filterDate, setFilterDate] = useState<'all' | 'today' | 'week' | 'month'>('all');
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'pinned'>('pinned');
-  const [searchQuery, setSearchQuery] = useState('');
-  
+  const [filterDeal, setFilterDeal] = useState<string>("all");
+  const [filterAuthor, setFilterAuthor] = useState<string>("all");
+  const [filterDate, setFilterDate] = useState<
+    "all" | "today" | "week" | "month"
+  >("all");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "pinned">(
+    "pinned"
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [creatingNote, setCreatingNote] = useState(false);
+
   // User settings
-  const [user1Name, setUser1Name] = useState('');
-  const [user2Name, setUser2Name] = useState('');
+  const [user1Name, setUser1Name] = useState("Dan");
+  const [user2Name, setUser2Name] = useState("Eman");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newNote, setNewNote] = useState({ dealId: "", message: "" });
 
   useEffect(() => {
     loadNotes();
-    loadNames();
-  }, []);
+    loadUserSettings();
+  }, [sortBy]);
 
-  const loadNotes = () => {
-    const allNotes = getAllNotesSorted(sortBy);
-    setNotes(allNotes);
+  const loadNotes = async () => {
+    try {
+      setLoading(true);
+      const response = await dashboardService.getTeamNotes({
+        sortBy,
+        dateFilter: filterDate,
+        search: searchQuery || undefined,
+        dealId: filterDeal !== "all" ? filterDeal : undefined,
+        author: filterAuthor !== "all" ? filterAuthor : undefined,
+      });
+      setNotes(response.data);
+    } catch (error) {
+      console.error("Failed to load notes:", error);
+      toast.error("Failed to load team notes");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const loadNames = () => {
-    const settings = loadUserSettings();
-    setUser1Name(settings.user1Name || '');
-    setUser2Name(settings.user2Name || '');
+  const loadUserSettings = async () => {
+    try {
+      const response = await dashboardService.getUserSettings();
+      setUser1Name(response.data.user1Name || "Dan");
+      setUser2Name(response.data.user2Name || "Eman");
+    } catch (error) {
+      console.error("Failed to load user settings:", error);
+    }
   };
 
-  const handleSaveSettings = () => {
-    saveUserSettings({
-      user1Name: user1Name || 'You',
-      user2Name: user2Name || 'Partner',
-    });
-    setSettingsOpen(false);
-    loadNames();
-    loadNotes();
+  const handleSaveSettings = async () => {
+    try {
+      await dashboardService.updateUserSettings({
+        user1Name: user1Name || "Dan",
+        user2Name: user2Name || "Eman",
+      });
+      setSettingsOpen(false);
+      toast.success("User settings updated");
+      await loadNotes();
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      toast.error("Failed to save settings");
+    }
   };
 
-  const handleDeleteNote = (noteId: string) => {
-    deleteTeamNote(noteId);
-    loadNotes();
+  const handleCreateNote = async () => {
+    if (!newNote.dealId || !newNote.message.trim()) {
+      toast.error("Please select a deal and enter a message");
+      return;
+    }
+
+    try {
+      setCreatingNote(true);
+      await dashboardService.createTeamNote({
+        dealId: newNote.dealId,
+        author: "user1", // Default to current user
+        message: newNote.message.trim(),
+        isPinned: false,
+      });
+
+      setNewNote({ dealId: "", message: "" });
+      await loadNotes();
+      toast.success("Note created successfully");
+    } catch (error) {
+      console.error("Failed to create note:", error);
+      toast.error("Failed to create note");
+    } finally {
+      setCreatingNote(false);
+    }
   };
 
-  const handleTogglePin = (noteId: string) => {
-    togglePinNote(noteId);
-    loadNotes();
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await dashboardService.deleteTeamNote(noteId);
+      await loadNotes();
+      toast.success("Note deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete note:", error);
+      toast.error("Failed to delete note");
+    }
   };
 
-  const handleClearAllNotes = () => {
-    if (window.confirm('⚠️ Are you sure you want to delete ALL notes?\n\nThis will permanently delete all team notes (user notes and system notes) and cannot be undone.\n\nDownload a backup first if you want to preserve them.')) {
-      clearAllTeamNotes();
-      loadNotes();
+  const handleTogglePin = async (noteId: string) => {
+    try {
+      const note = notes.find((n) => n.id === noteId);
+      if (note) {
+        await dashboardService.updateTeamNote(noteId, {
+          isPinned: !note.isPinned,
+        });
+        await loadNotes();
+        toast.success(note.isPinned ? "Note unpinned" : "Note pinned");
+      }
+    } catch (error) {
+      console.error("Failed to update note:", error);
+      toast.error("Failed to update note");
+    }
+  };
+
+  const handleClearAllNotes = async () => {
+    if (
+      window.confirm(
+        "⚠️ Are you sure you want to delete ALL notes?\n\nThis will permanently delete all team notes and cannot be undone."
+      )
+    ) {
+      try {
+        await dashboardService.deleteAllTeamNotes();
+        await loadNotes();
+        toast.success("All notes cleared successfully");
+      } catch (error) {
+        console.error("Failed to clear notes:", error);
+        toast.error("Failed to clear notes");
+      }
     }
   };
 
   const getDealAddress = (dealId: string): string => {
-    const deal = savedDeals.find(d => d.id === dealId);
-    return deal?.address || 'Unknown Address';
+    const deal = savedDeals.find((d) => d.id === dealId);
+    return deal?.address || "Unknown Address";
   };
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
       hour12: true,
     });
   };
@@ -123,13 +202,13 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
+    if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -158,25 +237,28 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
   };
 
   // Filter and search notes
-  const filteredNotes = notes.filter(note => {
-    if (filterDeal !== 'all' && note.dealId !== filterDeal) return false;
-    if (filterAuthor !== 'all' && note.author !== filterAuthor) return false;
-    
+  const filteredNotes = notes.filter((note) => {
+    if (filterDeal !== "all" && note.dealId !== filterDeal) return false;
+    if (filterAuthor !== "all" && note.author !== filterAuthor) return false;
+
     // Date filtering
-    if (filterDate !== 'all') {
+    if (filterDate !== "all") {
       const noteDate = new Date(note.timestamp);
-      if (filterDate === 'today' && !isToday(noteDate)) return false;
-      if (filterDate === 'week' && !isThisWeek(noteDate)) return false;
-      if (filterDate === 'month' && !isThisMonth(noteDate)) return false;
+      if (filterDate === "today" && !isToday(noteDate)) return false;
+      if (filterDate === "week" && !isThisWeek(noteDate)) return false;
+      if (filterDate === "month" && !isThisMonth(noteDate)) return false;
     }
-    
-    if (searchQuery && !note.message.toLowerCase().includes(searchQuery.toLowerCase())) {
+
+    if (
+      searchQuery &&
+      !note.message.toLowerCase().includes(searchQuery.toLowerCase())
+    ) {
       return false;
     }
     return true;
   });
 
-  const pinnedCount = notes.filter(n => n.isPinned).length;
+  const pinnedCount = notes.filter((n) => n.isPinned).length;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
@@ -211,11 +293,13 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                 <Input
                   id="user1"
                   value={user1Name}
-                  onChange={e => setUser1Name(e.target.value)}
+                  onChange={(e) => setUser1Name(e.target.value)}
                   placeholder="Dan"
                   className="font-medium"
                 />
-                <p className="text-xs text-muted-foreground">This is you (Dan)</p>
+                <p className="text-xs text-muted-foreground">
+                  This is you (Dan)
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="user2" className="text-sm font-medium">
@@ -224,16 +308,18 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                 <Input
                   id="user2"
                   value={user2Name}
-                  onChange={e => setUser2Name(e.target.value)}
+                  onChange={(e) => setUser2Name(e.target.value)}
                   placeholder="Eman"
                   className="font-medium"
                 />
-                <p className="text-xs text-muted-foreground">Your partner (Eman)</p>
+                <p className="text-xs text-muted-foreground">
+                  Your partner (Eman)
+                </p>
               </div>
               <Button onClick={handleSaveSettings} className="w-full">
                 Save Names
               </Button>
-              
+
               {/* Clear All Notes Section */}
               <div className="pt-4 border-t border-border">
                 <div className="space-y-2">
@@ -241,12 +327,12 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                     🗑️ Danger Zone
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Permanently delete all team notes (user notes and system notes).
-                    This cannot be undone!
+                    Permanently delete all team notes (user notes and system
+                    notes). This cannot be undone!
                   </p>
-                  <Button 
-                    onClick={handleClearAllNotes} 
-                    variant="destructive" 
+                  <Button
+                    onClick={handleClearAllNotes}
+                    variant="destructive"
                     className="w-full"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -257,6 +343,53 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
             </div>
           </DialogContent>
         </Dialog>
+      </div>
+
+      {/* Create New Note */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h3 className="mb-3 font-medium">Add New Note</h3>
+        <div className="space-y-3">
+          <Select
+            value={newNote.dealId}
+            onValueChange={(value: any) => setNewNote({ ...newNote, dealId: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a deal" />
+            </SelectTrigger>
+            <SelectContent>
+              {savedDeals.map((deal) => (
+                <SelectItem key={deal.id} value={deal.id}>
+                  {deal.address}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Textarea
+            placeholder="Enter your note..."
+            value={newNote.message}
+            onChange={(e) =>
+              setNewNote({ ...newNote, message: e.target.value })
+            }
+            rows={3}
+          />
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleCreateNote}
+              disabled={
+                creatingNote || !newNote.dealId || !newNote.message.trim()
+              }
+            >
+              {creatingNote ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <MessageSquare className="mr-2 h-4 w-4" />
+              )}
+              Add Note
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Stats */}
@@ -281,12 +414,16 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
           <Input
             placeholder="Search notes..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && loadNotes()}
             className="w-full"
           />
         </div>
 
-        <Select value={filterDate} onValueChange={(value: any) => setFilterDate(value as 'all' | 'today' | 'week' | 'month')}>
+        <Select
+          value={filterDate}
+          onValueChange={(value: any) => setFilterDate(value)}
+        >
           <SelectTrigger className="w-[160px]">
             <Calendar className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Time period" />
@@ -306,7 +443,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Deals</SelectItem>
-            {savedDeals.map(deal => (
+            {savedDeals.map((deal) => (
               <SelectItem key={deal.id} value={deal.id}>
                 {deal.address}
               </SelectItem>
@@ -321,8 +458,8 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Authors</SelectItem>
-            <SelectItem value="user1">👤 {getAuthorName('user1')} (Dan)</SelectItem>
-            <SelectItem value="user2">👤 {getAuthorName('user2')} (Eman)</SelectItem>
+            <SelectItem value="user1">👤 {user1Name}</SelectItem>
+            <SelectItem value="user2">👤 {user2Name}</SelectItem>
             <SelectItem value="system">🔒 System</SelectItem>
           </SelectContent>
         </Select>
@@ -330,12 +467,11 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
         <Select
           value={sortBy}
           onValueChange={(value: string) => {
-            setSortBy(value as 'newest' | 'oldest' | 'pinned');
-            loadNotes();
+            setSortBy(value as "newest" | "oldest" | "pinned");
           }}
         >
           <SelectTrigger className="w-[160px]">
-            {sortBy === 'oldest' ? (
+            {sortBy === "oldest" ? (
               <SortAsc className="mr-2 h-4 w-4" />
             ) : (
               <SortDesc className="mr-2 h-4 w-4" />
@@ -348,20 +484,32 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
             <SelectItem value="oldest">Oldest First</SelectItem>
           </SelectContent>
         </Select>
+
+        <Button variant="outline" onClick={loadNotes} disabled={loading}>
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Filter className="h-4 w-4" />
+          )}
+        </Button>
       </div>
 
       {/* Notes List */}
-      {filteredNotes.length > 0 ? (
+      {loading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : filteredNotes.length > 0 ? (
         <div className="space-y-3">
-          {filteredNotes.map(note => (
+          {filteredNotes.map((note) => (
             <div
               key={note.id}
               className={`relative rounded-lg border p-4 ${
                 note.isPinned
-                  ? 'border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20'
+                  ? "border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20"
                   : note.isSystemNote
-                    ? 'border-slate-300 bg-slate-50/50'
-                    : 'border-border bg-card'
+                  ? "border-slate-300 bg-slate-50/50"
+                  : "border-border bg-card"
               }`}
             >
               {note.isPinned && (
@@ -383,13 +531,18 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                     <Badge
                       className={`font-semibold ${
                         note.isSystemNote
-                          ? 'bg-slate-500 text-white hover:bg-slate-600'
-                          : note.author === 'user1' 
-                            ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                            : 'bg-purple-600 text-white hover:bg-purple-700'
+                          ? "bg-slate-500 text-white hover:bg-slate-600"
+                          : note.author === "user1"
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "bg-purple-600 text-white hover:bg-purple-700"
                       }`}
                     >
-                      {note.isSystemNote ? '🔒' : '👤'} {getAuthorName(note.author)}
+                      {note.isSystemNote ? "🔒" : "👤"}
+                      {note.author === "user1"
+                        ? user1Name
+                        : note.author === "user2"
+                        ? user2Name
+                        : "System"}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
                       {formatRelativeTime(note.timestamp)}
@@ -418,11 +571,11 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                         size="sm"
                         onClick={() => handleTogglePin(note.id)}
                         className="h-8 w-8 p-0"
-                        title={note.isPinned ? 'Unpin' : 'Pin'}
+                        title={note.isPinned ? "Unpin" : "Pin"}
                       >
                         <Pin
                           className={`h-4 w-4 ${
-                            note.isPinned ? 'fill-current text-amber-600' : ''
+                            note.isPinned ? "fill-current text-amber-600" : ""
                           }`}
                         />
                       </Button>
@@ -451,9 +604,9 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
           <MessageSquare className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
           <h3 className="mb-2 text-lg">No notes found</h3>
           <p className="text-sm text-muted-foreground">
-            {searchQuery || filterDeal !== 'all' || filterAuthor !== 'all'
-              ? 'Try adjusting your filters'
-              : 'Add notes to deals to start collaborating'}
+            {searchQuery || filterDeal !== "all" || filterAuthor !== "all"
+              ? "Try adjusting your filters"
+              : "Add notes to deals to start collaborating"}
           </p>
         </div>
       )}
