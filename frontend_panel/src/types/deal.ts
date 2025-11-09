@@ -199,6 +199,8 @@ export interface TeamNote {
   isPinned: boolean;
   isSystemNote?: boolean; // True for auto-generated change tracking notes
   changeType?: "stage" | "maxOffer" | "rehab" | "offMarket" | "price"; // Type of change tracked
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // User settings for team collaboration

@@ -182,8 +182,16 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
     return deal?.address || "Unknown Address";
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
+  // FIXED: Use createdAt field from API response instead of timestamp
+  const getNoteDate = (note: TeamNote): Date => {
+    // Use createdAt, updatedAt, or fallback to current date
+    return new Date(
+      note.createdAt || note.updatedAt || new Date().toISOString()
+    );
+  };
+
+  const formatTimestamp = (note: TeamNote) => {
+    const date = getNoteDate(note);
     return date.toLocaleString("en-US", {
       month: "short",
       day: "numeric",
@@ -194,8 +202,8 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
     });
   };
 
-  const formatRelativeTime = (timestamp: string) => {
-    const date = new Date(timestamp);
+  const formatRelativeTime = (note: TeamNote) => {
+    const date = getNoteDate(note);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -212,8 +220,9 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
     });
   };
 
-  // Date filter helper functions
-  const isToday = (date: Date): boolean => {
+  // Date filter helper functions - updated to use note object
+  const isToday = (note: TeamNote): boolean => {
+    const date = getNoteDate(note);
     const today = new Date();
     return (
       date.getDate() === today.getDate() &&
@@ -222,13 +231,15 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
     );
   };
 
-  const isThisWeek = (date: Date): boolean => {
+  const isThisWeek = (note: TeamNote): boolean => {
+    const date = getNoteDate(note);
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     return date >= weekAgo;
   };
 
-  const isThisMonth = (date: Date): boolean => {
+  const isThisMonth = (note: TeamNote): boolean => {
+    const date = getNoteDate(note);
     const today = new Date();
     return (
       date.getMonth() === today.getMonth() &&
@@ -243,10 +254,9 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
 
     // Date filtering
     if (filterDate !== "all") {
-      const noteDate = new Date(note.timestamp);
-      if (filterDate === "today" && !isToday(noteDate)) return false;
-      if (filterDate === "week" && !isThisWeek(noteDate)) return false;
-      if (filterDate === "month" && !isThisMonth(noteDate)) return false;
+      if (filterDate === "today" && !isToday(note)) return false;
+      if (filterDate === "week" && !isThisWeek(note)) return false;
+      if (filterDate === "month" && !isThisMonth(note)) return false;
     }
 
     if (
@@ -351,7 +361,9 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
         <div className="space-y-3">
           <Select
             value={newNote.dealId}
-            onValueChange={(value: any) => setNewNote({ ...newNote, dealId: value })}
+            onValueChange={(value: any) =>
+              setNewNote({ ...newNote, dealId: value })
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Select a deal" />
@@ -512,22 +524,23 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                   : "border-border bg-card"
               }`}
             >
-              {note.isPinned && (
-                <div className="absolute -top-2 left-4">
-                  <Badge
-                    variant="outline"
-                    className="border-amber-500 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                  >
-                    <Pin className="mr-1 h-3 w-3" />
-                    Pinned
-                  </Badge>
-                </div>
-              )}
-
+              {/* FIXED: Better layout to prevent badge overlap */}
               <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 space-y-2">
-                  {/* Header */}
+                <div className="flex-1 space-y-3">
+                  {/* Header - FIXED: Better badge layout */}
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Pinned Badge - only show if pinned */}
+                    {note.isPinned && (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      >
+                        <Pin className="mr-1 h-3 w-3" />
+                        Pinned
+                      </Badge>
+                    )}
+
+                    {/* Author Badge */}
                     <Badge
                       className={`font-semibold ${
                         note.isSystemNote
@@ -544,10 +557,13 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                         ? user2Name
                         : "System"}
                     </Badge>
+
+                    {/* Relative time */}
                     <span className="text-xs text-muted-foreground">
-                      {formatRelativeTime(note.timestamp)}
+                      {formatRelativeTime(note)}
                     </span>
-                    <span className="text-xs text-muted-foreground">•</span>
+
+                    {/* Deal address */}
                     <span className="text-xs text-muted-foreground">
                       {getDealAddress(note.dealId)}
                     </span>
@@ -558,7 +574,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
 
                   {/* Full timestamp */}
                   <div className="text-xs text-muted-foreground">
-                    {formatTimestamp(note.timestamp)}
+                    {formatTimestamp(note)}
                   </div>
                 </div>
 
