@@ -6,6 +6,9 @@ import {
   Section8ZipData,
   GlobalAssumptions,
   SavedDeal,
+  TeamNote,
+  UserSettings,
+  PipelineStats,
 } from "../types/deal";
 import {
   AssumptionsResponse,
@@ -566,6 +569,157 @@ class DashboardService {
       return response.status === "success";
     } catch (error) {
       return false;
+    }
+  }
+
+  // ========== TEAM NOTES ENDPOINTS ==========
+  // Get all team notes with filtering
+  async getTeamNotes(
+    params: {
+      dealId?: string;
+      author?: string;
+      dateFilter?: "today" | "week" | "month" | "all";
+      sortBy?: "newest" | "oldest" | "pinned";
+      search?: string;
+    } = {}
+  ): Promise<{ status: string; data: TeamNote[]; message: string }> {
+    try {
+      const response = await this.api.get("/api/team-notes", { params });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // Create team note
+  async createTeamNote(
+    noteData: Omit<TeamNote, "id" | "timestamp">
+  ): Promise<{ status: string; data: TeamNote; message: string }> {
+    try {
+      const response = await this.api.post("/api/team-notes", noteData);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // Update team note (pin/unpin)
+  async updateTeamNote(
+    noteId: string,
+    updateData: { isPinned?: boolean }
+  ): Promise<{ status: string; data: TeamNote; message: string }> {
+    try {
+      const response = await this.api.patch(
+        `/api/team-notes/${noteId}`,
+        updateData
+      );
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // Delete team note
+  async deleteTeamNote(
+    noteId: string
+  ): Promise<{ status: string; message: string }> {
+    try {
+      const response = await this.api.delete(`/api/team-notes/${noteId}`);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // Bulk delete team notes
+  async deleteAllTeamNotes(): Promise<{
+    status: string;
+    message: string;
+    deletedCount: number;
+  }> {
+    try {
+      const response = await this.api.delete("/api/team-notes");
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // Get user settings
+  async getUserSettings(): Promise<{
+    status: string;
+    data: UserSettings;
+    message: string;
+  }> {
+    try {
+      const response = await this.api.get("/api/user-settings");
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // Update user settings
+  async updateUserSettings(
+    settings: UserSettings
+  ): Promise<{ status: string; data: UserSettings; message: string }> {
+    try {
+      const response = await this.api.put("/api/user-settings", settings);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // ========== PIPELINE STATS ENDPOINTS ==========
+
+  // Get pipeline statistics
+  async getPipelineStats(
+    params: {
+      timeFrame?: "today" | "week" | "month" | "custom";
+      startDate?: string;
+      endDate?: string;
+    } = {}
+  ): Promise<{ status: string; data: PipelineStats; message: string }> {
+    try {
+      const response = await this.api.get("/api/pipeline-stats", { params });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // Get deal stage timeline
+  async getDealStageTimeline(
+    dealId: string
+  ): Promise<{ status: string; data: any[]; message: string }> {
+    try {
+      const response = await this.api.get(
+        `/api/deals/${dealId}/stage-timeline`
+      );
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
+    }
+  }
+
+  // ========== BULK IMPORT ENDPOINTS ==========
+
+  // Enhanced bulk import with stage tracking
+  async bulkImportDealsWithStaging(
+    properties: any[]
+  ): Promise<BulkOperationResponse> {
+    try {
+      const response = await this.api.post("/api/deals/bulk-with-staging", {
+        properties,
+      });
+      toast.success(
+        response.data.message ||
+          `${response.data.data.length} deals imported in Stage 1`
+      );
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error as AxiosError<ErrorResponse>);
     }
   }
 }

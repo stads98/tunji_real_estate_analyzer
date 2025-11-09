@@ -33,7 +33,7 @@ const corsOptions = {
 
 // Apply CORS to all routes first
 server.use(cors(corsOptions));
-server.set('trust proxy', true);
+// server.set('trust proxy', true);
 
 
 // Apply other middleware

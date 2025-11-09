@@ -31,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogTrigger,
 } from "./ui/dialog";
 import { Textarea } from "./ui/textarea";
 import {
@@ -42,6 +43,8 @@ import {
   ZillowComp,
   SavedDeal,
   UnitData,
+  DealStage,
+  DEAL_SCHEMA_VERSION,
 } from "../types/deal";
 import {
   calculateLTR,
@@ -93,6 +96,9 @@ import {
   ImageIcon,
   Loader2,
   Loader,
+  MessageSquare,
+  BookOpen,
+  Activity,
 } from "lucide-react";
 import { CashFlowChart } from "./charts/CashFlowChart";
 import { LoanBalanceEquityChart } from "./charts/LoanBalanceEquityChart";
@@ -102,8 +108,28 @@ import { ARVCalculator, SubjectProperty } from "./ARVCalculator";
 import { parseZillowForSale } from "../utils/zillowParser";
 import { toast } from "sonner";
 import { dashboardService } from "../services/dashboard.service";
-
-// v253_change: Removed duplicate UnitData interface - now using UnitDetail from types/deal.ts
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { DealNotes as DealNotesComp } from "./DealNotes";
+import { getStageInfo, getStagesByPhase } from "../utils/dealStages";
+import {
+  addSystemNote,
+  getNotesForDeal,
+  loadTeamNotes,
+} from "../utils/teamNotesStorage";
+import { PipelineStats } from "./PipelineStats";
+import { UserGuide } from "./UserGuide";
+import { TeamNotesTab } from "./TeamNotesTab";
+import { BulkPasteDialog } from "./BulkPasteDialog";
+import { BulkProperty } from "../utils/zillowBulkParser";
 
 interface UnifiedDashboardProps {
   globalAssumptions: GlobalAssumptions;
@@ -183,9 +209,12 @@ export function UnifiedDashboard({
   );
   const [hasManuallySelectedTab, setHasManuallySelectedTab] = useState(false);
   const [showCharts, setShowCharts] = useState(false);
-  const [mainView, setMainView] = useState<"overview" | "condition" | "arv">(
-    "overview"
-  );
+  const [mainView, setMainView] = useState<
+    "overview" | "condition" | "arv" | "teamnotes" | "stats" | "guide"
+  >("overview");
+
+  // Team notes state for badge counts
+  const [teamNotesCount, setTeamNotesCount] = useState({ total: 0, pinned: 0 });
 
   // Track if unit details are auto-populated (for multi-family)
   const [unitsAutoPopulated, setUnitsAutoPopulated] = useState(false);
@@ -202,6 +231,9 @@ export function UnifiedDashboard({
   // Zillow Quick Start
   const [showZillowQuickStart, setShowZillowQuickStart] = useState(false);
   const [zillowQuickStartData, setZillowQuickStartData] = useState("");
+
+  // Bulk Paste
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
 
   // ARV Calculator expanded descriptions state
   const [arvExpandedDescriptions, setArvExpandedDescriptions] = useState<
@@ -252,6 +284,23 @@ export function UnifiedDashboard({
       toast.error("Failed to load saved deals");
     }
   };
+
+  // Update team notes count
+  useEffect(() => {
+    const updateNotesCount = () => {
+      const allNotes = loadTeamNotes();
+      setTeamNotesCount({
+        total: allNotes.length,
+        pinned: allNotes.filter((n) => n.isPinned).length,
+      });
+    };
+
+    updateNotesCount();
+
+    // Update every 2 seconds to catch changes
+    const interval = setInterval(updateNotesCount, 2000);
+    return () => clearInterval(interval);
+  }, [savedDeals]);
 
   // v253_change: Update units when count changes (with loop guard)
   useEffect(() => {
@@ -607,6 +656,75 @@ export function UnifiedDashboard({
     if (!isNaN(numValue)) {
       handleChange(field, numValue);
     }
+  };
+
+  // Handler for changing deal stage
+  const handleStageChange = (dealId: string, newStage: DealStage) => {
+    // Get the old stage before updating
+    const deal = savedDeals.find((d) => d.id === dealId);
+    const oldStage = deal?.dealStage;
+
+    setSavedDeals((deals) =>
+      deals.map((deal) =>
+        deal.id === dealId
+          ? {
+              ...deal,
+              dealStage: newStage,
+              stageUpdatedAt: new Date().toISOString(),
+            }
+          : deal
+      )
+    );
+
+    // Add system note for stage change
+    if (oldStage && oldStage !== newStage) {
+      const oldStageInfo = getStageInfo(oldStage);
+      const newStageInfo = getStageInfo(newStage);
+
+      // Special tracking for Stage 5 (Ready for Max Offer)
+      if (newStage === "stage5-offer-submitted") {
+        // Calculate days in pipeline (from creation to now)
+        let daysInPipeline = 0;
+        if (deal?.createdAt) {
+          const created = new Date(deal.createdAt);
+          const now = new Date();
+          daysInPipeline = Math.floor(
+            (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)
+          );
+        }
+
+        // Get days on Zillow (from deal data)
+        const daysOnZillow = deal?.daysOnMarket || 0;
+
+        // Build message with tracking info
+        let message = `Stage updated: ${oldStageInfo.label} → ${newStageInfo.label}`;
+
+        // Add pipeline time tracking
+        if (daysInPipeline > 0) {
+          message += ` | Processed in ${daysInPipeline} day${
+            daysInPipeline !== 1 ? "s" : ""
+          }`;
+        }
+
+        // Add Zillow listing time
+        if (daysOnZillow > 0) {
+          message += ` | Listed ${daysOnZillow} day${
+            daysOnZillow !== 1 ? "s" : ""
+          } on Zillow`;
+        }
+
+        addSystemNote(dealId, message, "stage");
+      } else {
+        // Standard stage change note
+        addSystemNote(
+          dealId,
+          `Stage updated: ${oldStageInfo.label} → ${newStageInfo.label}`,
+          "stage"
+        );
+      }
+    }
+
+    toast.success(`Stage updated to: ${getStageInfo(newStage).label}`);
   };
 
   const handleNotesChange = (notes: DealNotes) => {
@@ -1401,6 +1519,145 @@ export function UnifiedDashboard({
     });
 
     return csvRows.join("\n");
+  };
+
+  // Bulk Paste Handler - creates multiple deals in Stage 1
+  const handleBulkImport = (properties: BulkProperty[]) => {
+    if (properties.length === 0) {
+      toast.error("No properties to import");
+      return;
+    }
+
+    const newDeals: SavedDeal[] = properties.map((property) => {
+      // Create base inputs with defaults
+      const baseInputs: DealInputs = {
+        // Address & Property Details
+        address: property.address,
+        purchasePrice: property.price, // FIXED: Only declare once
+        units: 1, // Default to 1, user can change
+        unitDetails: [
+          {
+            beds: property.beds || 0,
+            baths: property.baths || 0,
+            sqft: property.sqft || 0,
+            section8Rent: 0, // Will auto-populate when zip is extracted
+            strMonthlyRevenue: 0,
+          },
+        ],
+        totalSqft: property.sqft || 0,
+        yearBuilt: 0, // User to fill
+
+        // Financial Details - REMOVED duplicate purchasePrice
+        maxOffer: undefined,
+        isOffMarket: false,
+        strADR: 0, // DEPRECATED but required
+
+        // Property Expenses
+        propertyTaxes: Math.round(property.price * 0.02), // 2% Broward County
+        propertyInsurance: calculateCurrentInsurance(property.price, 2000), // Default year
+        hasHurricaneWindows: false,
+        hasNewRoof: false,
+
+        // Loan Details
+        loanInterestRate: 7.5,
+        loanTerm: 30,
+        downPayment: 25,
+        acquisitionCosts: 5, // Percentage default
+        acquisitionCostsAmount: Math.round(property.price * 0.05), // 5% default
+        setupFurnishCost: 0,
+
+        // Renovation/Rehab fields - FIXED: Use valid rehabCondition
+        isRehab: false,
+        rehabUnitType: "single",
+        rehabCondition: "light", // FIXED: Changed from "turnkey" to valid value
+        rehabCost: 0,
+        rehabMonths: 6,
+        rehabFinancingRate: 0,
+        rehabEntryPoints: 0,
+        rehabExitPoints: 0,
+
+        // Bridge Loan Parameters
+        bridgeLTC: 90,
+        bridgeRehabBudgetPercent: 100,
+        bridgeMaxARLTV: 70,
+
+        // Exit Refi Parameters
+        exitStrategy: "refi",
+        exitRefiLTV: 75,
+        exitRefiRate: 7.5,
+
+        // ARV & Rehab Property Expenses
+        afterRepairValue: 0,
+        rehabPropertyTaxes: 0,
+        rehabPropertyInsurance: 0,
+        sellClosingCosts: 3,
+
+        // Settlement Charges
+        bridgeSettlementCharges: Math.round(property.price * 0.06),
+        dscrAcquisitionCosts: 0,
+
+        // Property notes and assessment
+        notes: getDefaultNotes(),
+
+        // Photos & ARV
+        photos: [],
+        arvComps: [],
+        calculatedARV: 0,
+
+        // Optional fields
+        subjectLat: undefined,
+        subjectLng: undefined,
+        subjectPropertyDescription: undefined,
+        subjectPropertyZillowLink: undefined,
+      };
+
+      // Auto-populate Section 8 if we can extract zip
+      const zipCode = extractZipCode(property.address);
+      if (zipCode && property.beds) {
+        const s8Rent = getSection8Rent(
+          property.beds,
+          zipCode,
+          globalAssumptions.section8ZipData
+        );
+        if (s8Rent) {
+          baseInputs.unitDetails[0].section8Rent = s8Rent;
+        }
+      }
+
+      const now = new Date().toISOString();
+
+      // FIXED: Create proper SavedDeal with all required fields
+      const savedDeal: SavedDeal = {
+        ...baseInputs,
+        id:
+          Date.now().toString() + "-" + Math.random().toString(36).substr(2, 9),
+        savedAt: now,
+        schemaVersion: DEAL_SCHEMA_VERSION, // FIXED: Use the constant
+        createdAt: now,
+        dealStage: "stage1-basic-data",
+        stageUpdatedAt: now,
+
+        // Optional fields with defaults
+        daysOnMarket: undefined,
+        isCompleted: undefined,
+        completedAt: undefined,
+        teamNotes: [],
+      };
+
+      return savedDeal;
+    });
+
+    // Add all deals at once
+    setSavedDeals((prev) => [...prev, ...newDeals]);
+
+    toast.success(
+      `🎯 Imported ${newDeals.length} deal${
+        newDeals.length > 1 ? "s" : ""
+      } in Stage 1!`,
+      {
+        description: "Ready for Eman to add data & comps",
+      }
+    );
   };
 
   // Enhanced import deals function
@@ -2679,6 +2936,7 @@ export function UnifiedDashboard({
             </div>
           )}
 
+          {/* NOTE: CHECK FOR THE NEW COMPONENT HERE  */}
           {/* View Navigation Tabs */}
           <div className="flex items-center gap-2 border-t border-border pt-2 pb-0">
             <Button
@@ -2715,10 +2973,49 @@ export function UnifiedDashboard({
                 </Badge>
               )}
             </Button>
+
+            {/* NOTE: CHECK FOR THE NEW COMPONENT HERE  */}
+            <Button
+              variant={mainView === "teamnotes" ? "default" : "ghost"}
+              onClick={() => setMainView("teamnotes")}
+              size="sm"
+              className="relative"
+            >
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Team Notes
+              {teamNotesCount.pinned > 0 ? (
+                <Badge variant="destructive" className="ml-2 h-5 px-1.5">
+                  {teamNotesCount.pinned}
+                </Badge>
+              ) : teamNotesCount.total > 0 ? (
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                  {teamNotesCount.total}
+                </Badge>
+              ) : null}
+            </Button>
+            <Button
+              variant={mainView === "stats" ? "default" : "ghost"}
+              onClick={() => setMainView("stats")}
+              size="sm"
+              className="relative"
+            >
+              <Activity className="mr-2 h-4 w-4" />
+              Pipeline Stats
+            </Button>
+            <Button
+              variant={mainView === "guide" ? "default" : "ghost"}
+              onClick={() => setMainView("guide")}
+              size="sm"
+              className="ml-auto"
+            >
+              <BookOpen className="mr-2 h-4 w-4" />
+              User Guide
+            </Button>
           </div>
         </div>
       </div>
 
+      {/* NOTE: CHECK FOR THE NEW COMPONENT HERE  */}
       <div className="max-w-[1800px] mx-auto p-6">
         {mainView === "arv" ? (
           /* ARV Calculator View */
@@ -2857,6 +3154,15 @@ export function UnifiedDashboard({
               }
             }}
           />
+        ) : mainView === "teamnotes" ? (
+          /* Team Notes - Collaboration hub */
+          <TeamNotesTab savedDeals={savedDeals} />
+        ) : mainView === "stats" ? (
+          /* Pipeline Stats - Analytics & Metrics */
+          <PipelineStats savedDeals={savedDeals} />
+        ) : mainView === "guide" ? (
+          /* User Guide - Help & Documentation */
+          <UserGuide />
         ) : (
           /* Main Overview & Analysis View */
           <>
@@ -2943,6 +3249,15 @@ export function UnifiedDashboard({
                           Import JSON
                         </Button>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowBulkPaste(true)}
+                        className="border-purple-600 text-purple-600 hover:bg-purple-50"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Bulk Paste Favorites
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -3297,10 +3612,66 @@ export function UnifiedDashboard({
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
+                                    <Select
+                                      value={
+                                        deal.dealStage || "stage1-basic-data"
+                                      }
+                                      onValueChange={(stage: DealStage) =>
+                                        handleStageChange(deal.id, stage)
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        className="h-8 w-[140px] text-xs"
+                                        onClick={(e: any) =>
+                                          e.stopPropagation()
+                                        }
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent
+                                        onClick={(e: any) =>
+                                          e.stopPropagation()
+                                        }
+                                      >
+                                        <SelectGroup>
+                                          <SelectLabel>
+                                            Active Stages
+                                          </SelectLabel>
+                                          {getStagesByPhase().active.map(
+                                            (stage) => (
+                                              <SelectItem
+                                                key={stage.stage}
+                                                value={stage.stage}
+                                              >
+                                                {stage.label}
+                                              </SelectItem>
+                                            )
+                                          )}
+                                        </SelectGroup>
+                                        <SelectSeparator />
+                                        <SelectGroup>
+                                          <SelectLabel>Outcomes</SelectLabel>
+                                          {getStagesByPhase().outcomes.map(
+                                            (stage) => (
+                                              <SelectItem
+                                                key={stage.stage}
+                                                value={stage.stage}
+                                              >
+                                                {stage.label}
+                                              </SelectItem>
+                                            )
+                                          )}
+                                        </SelectGroup>
+                                        <SelectSeparator />
+                                        <SelectItem value="archived">
+                                          Archived
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={(e: MouseEvent) => {
+                                      onClick={(e: any) => {
                                         e.stopPropagation();
                                         handleLoadDeal(deal);
                                       }}
@@ -3308,10 +3679,65 @@ export function UnifiedDashboard({
                                     >
                                       <Eye className="h-4 w-4" />
                                     </Button>
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={(e: any) =>
+                                            e.stopPropagation()
+                                          }
+                                          title="Team notes"
+                                          className="relative"
+                                        >
+                                          <MessageSquare className="h-4 w-4" />
+                                          {(() => {
+                                            const notesCount = getNotesForDeal(
+                                              deal.id
+                                            ).length;
+                                            const pinnedCount = getNotesForDeal(
+                                              deal.id
+                                            ).filter((n) => n.isPinned).length;
+                                            return notesCount > 0 ? (
+                                              <Badge
+                                                variant={
+                                                  pinnedCount > 0
+                                                    ? "destructive"
+                                                    : "secondary"
+                                                }
+                                                className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]"
+                                              >
+                                                {notesCount}
+                                              </Badge>
+                                            ) : null;
+                                          })()}
+                                        </Button>
+                                      </DialogTrigger>
+                                      <DialogContent
+                                        className="max-w-2xl max-h-[80vh] overflow-y-auto"
+                                        onClick={(e: any) =>
+                                          e.stopPropagation()
+                                        }
+                                      >
+                                        <DialogHeader>
+                                          <DialogTitle>Team Notes</DialogTitle>
+                                          <DialogDescription>
+                                            {deal.address}
+                                          </DialogDescription>
+                                        </DialogHeader>
+                                        <DealNotesComp
+                                          dealId={deal.id}
+                                          onNotesChange={() => {
+                                            // Force re-render to update badge counts
+                                            setSavedDeals([...savedDeals]);
+                                          }}
+                                        />
+                                      </DialogContent>
+                                    </Dialog>
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={(e: MouseEvent) => {
+                                      onClick={(e: any) => {
                                         e.stopPropagation();
                                         setDeletingDealId(deal.id);
                                         setTimeout(() => {
@@ -6157,6 +6583,13 @@ export function UnifiedDashboard({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Paste Dialog */}
+      <BulkPasteDialog
+        open={showBulkPaste}
+        onOpenChange={setShowBulkPaste}
+        onImport={handleBulkImport}
+      />
     </div>
   );
 }

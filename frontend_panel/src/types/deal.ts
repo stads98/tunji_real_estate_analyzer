@@ -1,4 +1,26 @@
 // v253_change: Canonical UnitDetail type - used everywhere in app
+// Deal Stage System for workflow tracking
+export type DealStage =
+  | "stage1-basic-data" // Stage 1: Needs Basic Data (default)
+  | "stage2-ready-comps" // Stage 2: Add Data & Comps (call realtor next)
+  | "stage3-data-collection" // Stage 3: Called Realtor, Collected Notes & Rehab
+  | "stage4-ready-offer" // Stage 4: Ready for Offer (max offer added)
+  | "stage5-offer-submitted" // Stage 5: Offer Submitted
+  | "stage6-accepted" // Stage 6: Offer Accepted Verbally
+  | "stage6-rejected" // Stage 6: Offer Rejected
+  | "stage6-counter" // Stage 6: Counter-Offer Needed
+  | "archived"; // Archived/Closed
+
+export interface DealStageInfo {
+  stage: DealStage;
+  label: string;
+  shortLabel: string;
+  color: string;
+  bgColor: string;
+  description: string;
+  order: number;
+}
+
 export type UnitDetail = {
   beds: number;
   baths: number;
@@ -51,7 +73,7 @@ export interface DealInputs {
   isOffMarket?: boolean; // Flag for off-market properties (imported from Zillow off-market listings)
   strADR: number; // DEPRECATED: Keep for backward compatibility only
   propertyTaxes: number;
-  
+
   propertyInsurance: number;
   hasHurricaneWindows?: boolean; // Impact-rated or hurricane windows for insurance discount (FL)
   hasNewRoof?: boolean; // Roof 0-5 years old for insurance discount (FL)
@@ -167,13 +189,56 @@ export interface StrategyResults {
 
 export type Strategy = "ltr" | "section8" | "airbnb" | "rehab";
 
+// Team collaboration notes
+export interface TeamNote {
+  id: string;
+  dealId: string; // Associated deal ID
+  author: "user1" | "user2" | "system"; // This should include 'system'
+  message: string;
+  timestamp: string; // ISO timestamp
+  isPinned: boolean;
+  isSystemNote?: boolean; // True for auto-generated change tracking notes
+  changeType?: "stage" | "maxOffer" | "rehab" | "offMarket" | "price"; // Type of change tracked
+}
+
+// User settings for team collaboration
+export interface UserSettings {
+  user1Name: string; // Your name
+  user2Name: string; // Partner's name
+}
+
+export interface PipelineStats {
+  dealsCreated: number;
+  dealsToStage5: number;
+  dealsWithMaxOffer: number;
+  currentStage5: number;
+  avgDaysToStage5: number;
+  conversionRate: number;
+  avgMaxOffer: number;
+  stageDistribution: {
+    stage1: number;
+    stage2: number;
+    stage3: number;
+    stage4: number;
+    stage5: number;
+    stage6: number;
+    archived: number;
+  };
+}
+
 // v253_change: SavedDeal type with schema versioning
 export interface SavedDeal extends DealInputs {
   id: string;
   savedAt: string;
   schemaVersion: number;
+  daysOnMarket?: number;
+  dealStage?: DealStage; // Current stage in deal workflow
+  stageUpdatedAt?: string; // ISO timestamp when stage was last changed
+  isCompleted?: boolean; // DEPRECATED: Use dealStage instead (kept for migration)
+  createdAt?: string; // ISO timestamp when deal was first added to system
+  completedAt?: string; // ISO timestamp when deal was marked as completed
+  teamNotes?: TeamNote[]; // Inline team collaboration notes
 }
-
 // Property Condition Assessment Notes
 export interface DealNotes {
   // Realtor contact info

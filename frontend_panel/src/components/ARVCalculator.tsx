@@ -46,7 +46,8 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { MapSection, MapProperty } from "./MapSection";
+import { MapSection } from "./MapSection";
+import { DragDropUpload } from "./DragDropUpload";
 
 export interface ZillowComp {
   id: string;
@@ -88,6 +89,8 @@ export interface SubjectProperty {
   hasPool?: boolean;
   parkingSpaces?: number;
   description?: string;
+  daysOnMarket?: number; // Days on Zillow market
+  listingDate?: string; // Calculated listing date (YYYY-MM-DD)
   zillowLink?: string; // Zillow listing URL
   lat?: number; // Latitude for map display
   lng?: number; // Longitude for map display
@@ -100,7 +103,11 @@ interface ARVCalculatorProps {
   onARVChange: (arv: number) => void;
   subjectProperty?: SubjectProperty;
   onSubjectPropertyChange?: (property: SubjectProperty) => void;
-  subjectPhotos?: { id: string; url: string; isPrimary?: boolean }[]; // Photos from main property
+  subjectPhotos?: {
+    id: string;
+    url: string;
+    isPrimary?: boolean;
+  }[]; // Photos from main property
   onSubjectPhotosChange?: (
     photos: { id: string; url: string; isPrimary?: boolean }[]
   ) => void; // Callback to update main property photos
@@ -153,10 +160,9 @@ export function ARVCalculator({
       // expandedDescriptions (which may be external or internal) to compute
       // the new value, then forward that new value to the external callback.
       if (typeof updater === "function") {
-        const fn = updater as (prev: Record<string, boolean>) => Record<
-          string,
-          boolean
-        >;
+        const fn = updater as (
+          prev: Record<string, boolean>
+        ) => Record<string, boolean>;
         const newVal = fn(expandedDescriptions);
         onExpandedDescriptionsChange(newVal);
       } else {
@@ -959,6 +965,71 @@ export function ARVCalculator({
     reader.readAsDataURL(file);
   };
 
+  // Handle drag-and-drop for subject property
+  const handleSubjectPhotoDrop = (files: FileList) => {
+    if (!onSubjectPhotosChange) {
+      toast.error("Photo upload not supported for subject property");
+      return;
+    }
+
+    const file = files[0];
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please drop an image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const url = e.target?.result as string;
+      const newPhoto = {
+        id: `photo-${Date.now()}`,
+        url,
+        isPrimary: (subjectPhotos?.length || 0) === 0,
+      };
+
+      const updatedPhotos = [...(subjectPhotos || []), newPhoto];
+      onSubjectPhotosChange(updatedPhotos);
+      toast.success("Photo added to subject property");
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  // Handle drag-and-drop for comp property
+  const handleCompPhotoDrop = (compId: string, files: FileList) => {
+    const file = files[0];
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please drop an image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const url = e.target?.result as string;
+      const newPhoto = {
+        id: `photo-${Date.now()}`,
+        url,
+        isPrimary: false,
+      };
+
+      const updatedComps = comps.map((comp) => {
+        if (comp.id === compId) {
+          const existingPhotos = comp.photos || [];
+          return {
+            ...comp,
+            photos: [...existingPhotos, newPhoto],
+          };
+        }
+        return comp;
+      });
+
+      onCompsChange(updatedComps);
+      toast.success("Photo added to comp property");
+    };
+
+    reader.readAsDataURL(file);
+  };
+
   // Handle photo upload for subject property
   const handleSubjectPhotoUpload = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -1164,26 +1235,26 @@ export function ARVCalculator({
     }
 
     // 1. DISTANCE SCORE (25% weight)
-        let distanceScore = 50;
-        let distance: number | null = null;
-        if (subjectProperty.lat && subjectProperty.lng && comp.lat && comp.lng) {
-          const d = calculateDistance(
-            subjectProperty.lat,
-            subjectProperty.lng,
-            comp.lat,
-            comp.lng
-          );
-          distance = d;
-          if (d <= 0.25) {
-            distanceScore = 100;
-          } else if (d <= 0.5) {
-            distanceScore = 80;
-          } else if (d <= 1.0) {
-            distanceScore = 50;
-          } else {
-            distanceScore = Math.max(0, 50 - (d - 1.0) * 25);
-          }
-        }
+    let distanceScore = 50;
+    let distance: number | null = null;
+    if (subjectProperty.lat && subjectProperty.lng && comp.lat && comp.lng) {
+      const d = calculateDistance(
+        subjectProperty.lat,
+        subjectProperty.lng,
+        comp.lat,
+        comp.lng
+      );
+      distance = d;
+      if (d <= 0.25) {
+        distanceScore = 100;
+      } else if (d <= 0.5) {
+        distanceScore = 80;
+      } else if (d <= 1.0) {
+        distanceScore = 50;
+      } else {
+        distanceScore = Math.max(0, 50 - (d - 1.0) * 25);
+      }
+    }
 
     // 2. RECENCY SCORE (20% weight)
     let recencyScore = 50;
@@ -1665,47 +1736,53 @@ export function ARVCalculator({
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex gap-2">
-                              {subjectPhotos && subjectPhotos.length > 0 ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    handlePreviewPhotos(
-                                      subjectPhotos,
-                                      `Subject Property: ${subjectProperty.address}`,
-                                      "subject"
-                                    )
-                                  }
-                                  className="gap-1"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                  <span>{subjectPhotos.length}</span>
-                                </Button>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">
-                                  No photos
-                                </span>
-                              )}
-                              <label className="cursor-pointer">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={handleSubjectPhotoUpload}
-                                  className="hidden"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  asChild
-                                >
-                                  <span>
-                                    <Upload className="h-3 w-3" />
+                            <DragDropUpload
+                              onFilesSelected={handleSubjectPhotoDrop}
+                              accept="image/*"
+                              className="inline-block"
+                            >
+                              <div className="flex gap-2">
+                                {subjectPhotos && subjectPhotos.length > 0 ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      handlePreviewPhotos(
+                                        subjectPhotos,
+                                        `Subject Property: ${subjectProperty.address}`,
+                                        "subject"
+                                      )
+                                    }
+                                    className="gap-1"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    <span>{subjectPhotos.length}</span>
+                                  </Button>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">
+                                    Drag photo here
                                   </span>
-                                </Button>
-                              </label>
-                            </div>
+                                )}
+                                <label className="cursor-pointer">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleSubjectPhotoUpload}
+                                    className="hidden"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    asChild
+                                  >
+                                    <span>
+                                      <Upload className="h-3 w-3" />
+                                    </span>
+                                  </Button>
+                                </label>
+                              </div>
+                            </DragDropUpload>
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1 items-center">
@@ -2335,52 +2412,60 @@ export function ARVCalculator({
                               />
                             </TableCell>
                             <TableCell>
-                              <div className="flex gap-2">
-                                {comp.photos && comp.photos.length > 0 ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      handlePreviewPhotos(
-                                        comp.photos!,
-                                        `Comp: ${comp.address}`,
-                                        "comp",
-                                        comp.id
-                                      )
-                                    }
-                                    className="gap-1"
-                                  >
-                                    <Eye className="h-3 w-3" />
-                                    <span className="text-xs">
-                                      {comp.photos.length}
+                              <DragDropUpload
+                                onFilesSelected={(files) =>
+                                  handleCompPhotoDrop(comp.id, files)
+                                }
+                                accept="image/*"
+                                className="inline-block"
+                              >
+                                <div className="flex gap-2">
+                                  {comp.photos && comp.photos.length > 0 ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handlePreviewPhotos(
+                                          comp.photos!,
+                                          `Comp: ${comp.address}`,
+                                          "comp",
+                                          comp.id
+                                        )
+                                      }
+                                      className="gap-1"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      <span className="text-xs">
+                                        {comp.photos.length}
+                                      </span>
+                                    </Button>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">
+                                      Drag photo
                                     </span>
-                                  </Button>
-                                ) : (
-                                  <span className="text-muted-foreground text-xs">
-                                    No photos
-                                  </span>
-                                )}
-                                <label className="cursor-pointer">
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) =>
-                                      handleCompPhotoUpload(comp.id, e)
-                                    }
-                                    className="hidden"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    asChild
-                                  >
-                                    <span>
-                                      <Upload className="h-3 w-3" />
-                                    </span>
-                                  </Button>
-                                </label>
-                              </div>
+                                  )}
+                                  <label className="cursor-pointer">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) =>
+                                        handleCompPhotoUpload(comp.id, e)
+                                      }
+                                      className="hidden"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      asChild
+                                    >
+                                      <span>
+                                        <Upload className="h-3 w-3" />
+                                      </span>
+                                    </Button>
+                                  </label>
+                                </div>
+                              </DragDropUpload>
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1 items-center">
