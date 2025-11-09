@@ -336,25 +336,34 @@ class DealService {
   // Add this method to your existing DealService class
   async bulkCreateDealsWithStaging(properties) {
     try {
+      console.log("Received properties count:", properties.length);
+      console.log(
+        "Received properties:",
+        properties.map((p) => ({
+          address: p.address,
+          price: p.price,
+        }))
+      );
+
       // Transform properties into full deal objects with Stage 1 default
       const dealsWithStaging = properties.map((property, index) => ({
         address: property.address,
-        units: 1, // Default to 1 unit
+        units: 1,
         unitDetails: [
           {
             beds: property.beds || 0,
             baths: property.baths || 0,
             sqft: property.sqft || 0,
-            section8Rent: 0, // Will auto-populate when zip is extracted
+            section8Rent: 0,
             marketRent: 0,
           },
         ],
         totalSqft: property.sqft || 0,
-        yearBuilt: 0, // User to fill
+        yearBuilt: 0,
         purchasePrice: property.price || 0,
         isOffMarket: false,
         propertyTaxes: Math.round((property.price || 0) * 0.02),
-        propertyInsurance: 0, // Will calculate based on defaults
+        propertyInsurance: 0,
         loanInterestRate: 7.5,
         loanTerm: 30,
         downPayment: 25,
@@ -381,8 +390,8 @@ class DealService {
         sellClosingCosts: 3,
         bridgeSettlementCharges: Math.round((property.price || 0) * 0.06),
         dscrAcquisitionCosts: 0,
-        strADR: 125, // DEPRECATED but required
-        dealStage: "stage1-basic-data", // Auto-set to Stage 1
+        strADR: 125,
+        dealStage: "stage1-basic-data",
         stageUpdatedAt: new Date().toISOString(),
         notes: this.getDefaultNotes(),
         photos: [],
@@ -391,7 +400,19 @@ class DealService {
         schemaVersion: 3,
       }));
 
+      console.log("About to insert deals count:", dealsWithStaging.length);
+
       const result = await Deal.insertMany(dealsWithStaging);
+
+      console.log("Actual inserted deals count:", result.length);
+      console.log(
+        "Inserted deals:",
+        result.map((d) => ({
+          id: d._id,
+          address: d.address,
+          price: d.purchasePrice,
+        }))
+      );
 
       await logger.info("Bulk deals created with staging", {
         service: "DealService",

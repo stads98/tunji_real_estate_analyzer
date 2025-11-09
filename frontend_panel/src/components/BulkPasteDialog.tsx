@@ -30,14 +30,14 @@ import { toast } from "sonner";
 
 interface BulkPasteDialogProps {
   open: boolean;
+  loadDealsFromAPI: () => Promise<void>; // Add this
   onOpenChange: (open: boolean) => void;
-  onImport: (properties: BulkProperty[]) => void;
 }
 
 export function BulkPasteDialog({
   open,
   onOpenChange,
-  onImport,
+  loadDealsFromAPI,
 }: BulkPasteDialogProps) {
   const [pastedText, setPastedText] = useState("");
   const [parsedProperties, setParsedProperties] = useState<BulkProperty[]>([]);
@@ -111,8 +111,7 @@ export function BulkPasteDialog({
       // Reset and close
       handleCancel();
 
-      // Trigger refresh in parent component
-      onImport(propertiesToImport);
+      await loadDealsFromAPI();
     } catch (error) {
       console.error("Failed to import deals:", error);
       toast.error("Failed to import deals");
@@ -229,14 +228,14 @@ MLS ID #F10532733, EXP Realty LLC`;
               <Button
                 variant="outline"
                 onClick={handleCancel}
-                className="w-full sm:w-auto"
+                className="sm:w-auto"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleParse}
                 disabled={!pastedText.trim()}
-                className="w-full sm:w-auto"
+                className="sm:w-auto"
               >
                 Parse & Preview
               </Button>
@@ -374,14 +373,14 @@ MLS ID #F10532733, EXP Realty LLC`;
               <Button
                 variant="outline"
                 onClick={() => setShowPreview(false)}
-                className="w-full sm:w-auto"
+                className=" sm:w-auto"
               >
                 Back to Edit
               </Button>
               <Button
                 onClick={handleImport}
                 disabled={selectedCount === 0 || loading}
-                className="w-full sm:w-auto"
+                className=" sm:w-auto"
               >
                 {loading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

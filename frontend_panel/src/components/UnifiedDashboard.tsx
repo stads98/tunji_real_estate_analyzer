@@ -120,10 +120,7 @@ import {
 } from "./ui/select";
 import { DealNotes as DealNotesComp } from "./DealNotes";
 import { getStageInfo, getStagesByPhase } from "../utils/dealStages";
-import {
-  getNotesForDeal,
-  loadTeamNotes,
-} from "../utils/teamNotesStorage";
+import { getNotesForDeal, loadTeamNotes } from "../utils/teamNotesStorage";
 import { PipelineStats } from "./PipelineStats";
 import { UserGuide } from "./UserGuide";
 import { TeamNotesTab } from "./TeamNotesTab";
@@ -1542,36 +1539,6 @@ export function UnifiedDashboard({
     });
 
     return csvRows.join("\n");
-  };
-
-  // Bulk Paste Handler - creates multiple deals in Stage 1
-  const handleBulkImport = async (properties: BulkProperty[]) => {
-    if (properties.length === 0) {
-      toast.error("No properties to import");
-      return;
-    }
-
-    try {
-      // Use the enhanced bulk import service
-      const response = await dashboardService.bulkImportDealsWithStaging(
-        properties
-      );
-
-      // Refresh deals list
-      await loadDealsFromAPI();
-
-      toast.success(
-        `🎯 Imported ${response.data.length} deal${
-          response.data.length > 1 ? "s" : ""
-        } in Stage 1!`,
-        {
-          description: "Ready for Eman to add data & comps",
-        }
-      );
-    } catch (error) {
-      console.error("Failed to bulk import deals:", error);
-      toast.error("Failed to import deals");
-    }
   };
 
   // Enhanced import deals function
@@ -3526,7 +3493,6 @@ export function UnifiedDashboard({
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
-
                                     {/* ERROR FROM BACKEND */}
                                     <Select
                                       value={
@@ -6504,7 +6470,7 @@ export function UnifiedDashboard({
       <BulkPasteDialog
         open={showBulkPaste}
         onOpenChange={setShowBulkPaste}
-        onImport={handleBulkImport}
+        loadDealsFromAPI={loadDealsFromAPI}
       />
     </div>
   );
