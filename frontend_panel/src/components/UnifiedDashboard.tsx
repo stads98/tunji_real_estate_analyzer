@@ -2819,75 +2819,78 @@ export function UnifiedDashboard({
 
           {/* NOTE: CHECK FOR THE NEW COMPONENT HERE  */}
           {/* View Navigation Tabs */}
-          <div className="flex items-center gap-2 border-t border-border pt-2 pb-0">
-            <Button
-              variant={mainView === "overview" ? "default" : "ghost"}
-              onClick={() => setMainView("overview")}
-              size="sm"
-            >
-              <Home className="mr-2 h-4 w-4" />
-              Overview & Analysis
-            </Button>
-            <Button
-              variant={mainView === "condition" ? "default" : "ghost"}
-              onClick={() => setMainView("condition")}
-              size="sm"
-              className="relative"
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Rehab Estimate
-              {hasNotesData() && (
-                <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></span>
-              )}
-            </Button>
-            <Button
-              variant={mainView === "arv" ? "default" : "ghost"}
-              onClick={() => setMainView("arv")}
-              size="sm"
-              className="relative"
-            >
-              <Calculator className="mr-2 h-4 w-4" />
-              ARV Calculator
-              {inputs.arvComps && inputs.arvComps.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 px-1.5">
-                  {inputs.arvComps.length}
-                </Badge>
-              )}
-            </Button>
+          <div className="w-full flex items-center justify-between gap-2 border-t border-border pt-2 pb-0">
+            {/* Left side buttons */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant={mainView === "overview" ? "default" : "ghost"}
+                onClick={() => setMainView("overview")}
+                size="sm"
+              >
+                <Home className="mr-2 h-4 w-4" />
+                Overview & Analysis
+              </Button>
+              <Button
+                variant={mainView === "condition" ? "default" : "ghost"}
+                onClick={() => setMainView("condition")}
+                size="sm"
+                className="relative"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Rehab Estimate
+                {hasNotesData() && (
+                  <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></span>
+                )}
+              </Button>
+              <Button
+                variant={mainView === "arv" ? "default" : "ghost"}
+                onClick={() => setMainView("arv")}
+                size="sm"
+                className="relative"
+              >
+                <Calculator className="mr-2 h-4 w-4" />
+                ARV Calculator
+                {inputs.arvComps && inputs.arvComps.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                    {inputs.arvComps.length}
+                  </Badge>
+                )}
+              </Button>
 
-            {/* NOTE: CHECK FOR THE NEW COMPONENT HERE  */}
-            <Button
-              variant={mainView === "teamnotes" ? "default" : "ghost"}
-              onClick={() => setMainView("teamnotes")}
-              size="sm"
-              className="relative"
-            >
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Team Notes
-              {teamNotesCount.pinned > 0 ? (
-                <Badge variant="destructive" className="ml-2 h-5 px-1.5">
-                  {teamNotesCount.pinned}
-                </Badge>
-              ) : teamNotesCount.total > 0 ? (
-                <Badge variant="secondary" className="ml-2 h-5 px-1.5">
-                  {teamNotesCount.total}
-                </Badge>
-              ) : null}
-            </Button>
-            <Button
-              variant={mainView === "stats" ? "default" : "ghost"}
-              onClick={() => setMainView("stats")}
-              size="sm"
-              className="relative"
-            >
-              <Activity className="mr-2 h-4 w-4" />
-              Pipeline Stats
-            </Button>
+              <Button
+                variant={mainView === "teamnotes" ? "default" : "ghost"}
+                onClick={() => setMainView("teamnotes")}
+                size="sm"
+                className="relative"
+              >
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Team Notes
+                {teamNotesCount.pinned > 0 ? (
+                  <Badge variant="destructive" className="ml-2 h-5 px-1.5">
+                    {teamNotesCount.pinned}
+                  </Badge>
+                ) : teamNotesCount.total > 0 ? (
+                  <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                    {teamNotesCount.total}
+                  </Badge>
+                ) : null}
+              </Button>
+              <Button
+                variant={mainView === "stats" ? "default" : "ghost"}
+                onClick={() => setMainView("stats")}
+                size="sm"
+                className="relative"
+              >
+                <Activity className="mr-2 h-4 w-4" />
+                Pipeline Stats
+              </Button>
+            </div>
+
+            {/* Right side button */}
             <Button
               variant={mainView === "guide" ? "default" : "ghost"}
               onClick={() => setMainView("guide")}
               size="sm"
-              className="ml-auto"
             >
               <BookOpen className="mr-2 h-4 w-4" />
               User Guide
