@@ -135,8 +135,17 @@ export const DealNotes: React.FC<DealNotesProps> = ({
     }
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
+  // FIXED: Use createdAt field from API response instead of timestamp
+  const getNoteDate = (note: TeamNote): Date => {
+    // Use createdAt, updatedAt, or fallback to current date
+    return new Date(
+      note.createdAt || note.updatedAt || new Date().toISOString()
+    );
+  };
+
+  // FIXED: Updated to use note object instead of just timestamp string
+  const formatRelativeTime = (note: TeamNote) => {
+    const date = getNoteDate(note);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -154,10 +163,11 @@ export const DealNotes: React.FC<DealNotesProps> = ({
     });
   };
 
+  // FIXED: Updated sorting to use proper date fields
   const sortedNotes = [...notes].sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
-    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    return getNoteDate(b).getTime() - getNoteDate(a).getTime();
   });
 
   return (
@@ -240,21 +250,23 @@ export const DealNotes: React.FC<DealNotesProps> = ({
                     : "border-border bg-background"
                 }`}
               >
-                {note.isPinned && (
-                  <div className="absolute -top-2 left-3">
-                    <Badge
-                      variant="outline"
-                      className="border-amber-500 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                    >
-                      <Pin className="mr-1 h-3 w-3" />
-                      Pinned
-                    </Badge>
-                  </div>
-                )}
-
+                {/* FIXED: Better layout to prevent badge overlap */}
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
+                  <div className="flex-1 space-y-2">
+                    {/* Header - FIXED: Better badge layout without absolute positioning */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Pinned Badge - only show if pinned */}
+                      {note.isPinned && (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-500 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                        >
+                          <Pin className="mr-1 h-3 w-3" />
+                          Pinned
+                        </Badge>
+                      )}
+
+                      {/* Author Badge */}
                       <Badge
                         variant={
                           note.author === "user1" ? "default" : "secondary"
@@ -270,10 +282,14 @@ export const DealNotes: React.FC<DealNotesProps> = ({
                         {note.isSystemNote ? "🔒" : "👤"}{" "}
                         {getAuthorName(note.author)}
                       </Badge>
+
+                      {/* Relative time */}
                       <span className="text-xs text-muted-foreground">
-                        {formatTimestamp(note.timestamp)}
+                        {formatRelativeTime(note)}
                       </span>
                     </div>
+
+                    {/* Message */}
                     <p className="text-sm leading-relaxed">{note.message}</p>
                   </div>
 

@@ -10,6 +10,7 @@ import {
   Settings,
   Calendar,
   Loader2,
+  User,
 } from "lucide-react";
 import { TeamNote, SavedDeal } from "../types/deal";
 import { dashboardService } from "../services/dashboard.service";
@@ -55,6 +56,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
   // User settings
   const [user1Name, setUser1Name] = useState("Dan");
   const [user2Name, setUser2Name] = useState("Eman");
+  const [currentUser, setCurrentUser] = useState<"user1" | "user2">("user1"); // Add current user selection
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newNote, setNewNote] = useState({ dealId: "", message: "" });
 
@@ -117,7 +119,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
       setCreatingNote(true);
       await dashboardService.createTeamNote({
         dealId: newNote.dealId,
-        author: "user1", // Default to current user
+        author: currentUser, // Use selected user instead of hardcoded "user1"
         message: newNote.message.trim(),
         isPinned: false,
       });
@@ -180,6 +182,20 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
   const getDealAddress = (dealId: string): string => {
     const deal = savedDeals.find((d) => d.id === dealId);
     return deal?.address || "Unknown Address";
+  };
+
+  // Helper to get author display name
+  const getAuthorName = (author: string): string => {
+    switch (author) {
+      case "user1":
+        return user1Name || "Dan";
+      case "user2":
+        return user2Name || "Eman";
+      case "system":
+        return "System";
+      default:
+        return author;
+    }
   };
 
   // FIXED: Use createdAt field from API response instead of timestamp
@@ -359,6 +375,32 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
       <div className="rounded-lg border border-border bg-card p-4">
         <h3 className="mb-3 font-medium">Add New Note</h3>
         <div className="space-y-3">
+          {/* User Selection - NEW FIELD */}
+          <div className="space-y-2">
+            <Label htmlFor="author-select" className="text-sm font-medium">
+              Posting as:
+            </Label>
+            <Select
+              value={currentUser}
+              onValueChange={(value: "user1" | "user2") =>
+                setCurrentUser(value)
+              }
+            >
+              <SelectTrigger id="author-select" className="w-full">
+                <User className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Select user" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user1">
+                  👤 {getAuthorName("user1")}
+                </SelectItem>
+                <SelectItem value="user2">
+                  👤 {getAuthorName("user2")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <Select
             value={newNote.dealId}
             onValueChange={(value: any) =>
@@ -378,7 +420,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
           </Select>
 
           <Textarea
-            placeholder="Enter your note..."
+            placeholder={`Write a note as ${getAuthorName(currentUser)}...`}
             value={newNote.message}
             onChange={(e) =>
               setNewNote({ ...newNote, message: e.target.value })
@@ -398,7 +440,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
               ) : (
                 <MessageSquare className="mr-2 h-4 w-4" />
               )}
-              Add Note
+              Add Note as {getAuthorName(currentUser)}
             </Button>
           </div>
         </div>
@@ -470,8 +512,8 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Authors</SelectItem>
-            <SelectItem value="user1">👤 {user1Name}</SelectItem>
-            <SelectItem value="user2">👤 {user2Name}</SelectItem>
+            <SelectItem value="user1">👤 {getAuthorName("user1")}</SelectItem>
+            <SelectItem value="user2">👤 {getAuthorName("user2")}</SelectItem>
             <SelectItem value="system">🔒 System</SelectItem>
           </SelectContent>
         </Select>
@@ -551,11 +593,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                       }`}
                     >
                       {note.isSystemNote ? "🔒" : "👤"}
-                      {note.author === "user1"
-                        ? user1Name
-                        : note.author === "user2"
-                        ? user2Name
-                        : "System"}
+                      {getAuthorName(note.author)}
                     </Badge>
 
                     {/* Relative time */}
