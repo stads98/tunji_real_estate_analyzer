@@ -3165,8 +3165,8 @@ export function UnifiedDashboard({
             {savedDeals.length > 0 && (
               <Card className="mb-6">
                 <CardHeader>
-                  <div className="flex flex-col md:flex-row items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
+                  <div className="w-full flex md:flex-col flex-row items-start justify-between gap-4">
+                    <div className="w-full">
                       <div className="flex items-center gap-3">
                         <CardTitle>Saved Deals</CardTitle>
                         {(() => {
@@ -3207,7 +3207,7 @@ export function UnifiedDashboard({
 
                     {/* Responsive button container */}
                     <div className="w-full sm:w-auto">
-                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                      <div className="flex gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                         <div className="flex gap-2 flex-nowrap">
                           <Button
                             variant="outline"
