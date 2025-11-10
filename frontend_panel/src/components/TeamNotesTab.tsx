@@ -478,7 +478,6 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                     )}
 
                     {/* Author Badge */}
-
                     <Badge
                       className={`font-semibold ${
                         note.isSystemNote

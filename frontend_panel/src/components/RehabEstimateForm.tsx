@@ -101,6 +101,48 @@ export function RehabEstimateForm({
   const [parseText, setParseText] = useState("");
   const [showClearConfirmDialog, setShowClearConfirmDialog] = useState(false);
 
+  // Add these at the top of your component
+  const prevNotesRef = useRef<DealNotes>(localNotes);
+  const isManualUpdate = useRef(false);
+
+  // Helper function to detect significant changes
+  const hasSignificantChanges = (
+    current: DealNotes,
+    previous: DealNotes
+  ): boolean => {
+    if (!previous) return true;
+
+    const significantFields = [
+      "overallCondition",
+      "roof.condition",
+      "foundation.condition",
+      "hvac.condition",
+      "plumbing.condition",
+      "electrical.condition",
+      "kitchen.condition",
+      "bathrooms",
+      "interior.flooring",
+      "interior.walls",
+      "exterior.siding",
+      "exterior.windows",
+      "exterior.doors",
+      "additionalIssues",
+    ];
+
+    return significantFields.some((field) => {
+      const keys = field.split(".");
+      let currentVal: any = current;
+      let prevVal: any = previous;
+
+      for (const key of keys) {
+        currentVal = currentVal?.[key];
+        prevVal = prevVal?.[key];
+      }
+
+      return currentVal !== prevVal;
+    });
+  };
+
   // Track changes for auto-save
   const handleChangeWithAutoSave = useCallback(
     (newNotes: DealNotes) => {
@@ -749,88 +791,92 @@ export function RehabEstimateForm({
   // Enhanced auto-regenerate estimate - fix the type issue
   useEffect(() => {
     // Only auto-regenerate if we've already generated an estimate at least once
-    if (lineItems.length > 0) {
+    // AND if there are significant changes (not just typing)
+    if (lineItems.length > 0 && !isManualUpdate.current) {
       // Debounce to avoid excessive recalculations while typing
       const timer = setTimeout(() => {
         try {
           const result = analyzePropertyCondition(localNotes, totalSqft, units);
           setEstimateResult(result);
 
-          // Regenerate line items
-          const generatedItems = generateLineItems(
+          // Only regenerate if there are actual condition changes
+          const shouldRegenerate = hasSignificantChanges(
             localNotes,
-            totalSqft,
-            units
+            prevNotesRef.current
           );
 
-          // Preserve custom items (items that user added manually)
-          const generatedCategories = new Set(
-            generatedItems.map((item) => item.category)
-          );
-          const customItems = lineItems.filter((existingItem) => {
-            const isCustomCategory = !generatedCategories.has(
-              existingItem.category
+          if (shouldRegenerate) {
+            const generatedItems = generateLineItems(
+              localNotes,
+              totalSqft,
+              units
             );
-            const isCustomItem =
-              existingItem.category === "Custom" ||
-              existingItem.category === "Additional Work" ||
-              !generatedItems.some(
-                (genItem) =>
-                  genItem.category === existingItem.category &&
-                  genItem.description === existingItem.description
+
+            // Preserve custom items
+            const generatedCategories = new Set(
+              generatedItems.map((item) => item.category)
+            );
+            const customItems = lineItems.filter((existingItem) => {
+              const isCustomCategory = !generatedCategories.has(
+                existingItem.category
               );
-            return isCustomCategory || isCustomItem;
-          });
-
-          // Merge generated items with preserved custom items
-          const mergedItems = [...generatedItems, ...customItems];
-          setLineItems(mergedItems);
-
-          // Convert LineItem[] to DealNotes['lineItems'] type
-          const compatibleLineItems: DealNotes["lineItems"] = mergedItems.map(
-            (item) => ({
-              id: item.id,
-              category: item.category as
-                | "structural"
-                | "systems"
-                | "interior"
-                | "exterior",
-              description: item.description,
-              estimatedCost: item.estimatedCost,
-            })
-          );
-
-          // Update the estimated rehab cost field
-          const totalCost = mergedItems.reduce(
-            (sum, item) => sum + item.estimatedCost,
-            0
-          );
-
-          // Update notes with new estimate
-          const updatedNotes = {
-            ...localNotes,
-            estimatedRehabCost: formatCurrency(totalCost),
-            lineItems: compatibleLineItems,
-            lastUpdated: new Date().toISOString(),
-          };
-
-          handleChangeWithAutoSave(updatedNotes);
-
-          // Notify parent component
-          if (onRehabEstimateGenerated) {
-            onRehabEstimateGenerated({
-              ...result,
-              estimatedCost: totalCost,
+              const isCustomItem =
+                existingItem.category === "Custom" ||
+                existingItem.category === "Additional Work" ||
+                !generatedItems.some(
+                  (genItem) =>
+                    genItem.category === existingItem.category &&
+                    genItem.description === existingItem.description
+                );
+              return isCustomCategory || isCustomItem;
             });
+
+            // Merge generated items with preserved custom items
+            const mergedItems = [...generatedItems, ...customItems];
+            setLineItems(mergedItems);
+
+            // Update notes
+            const totalCost = mergedItems.reduce(
+              (sum, item) => sum + item.estimatedCost,
+              0
+            );
+            const updatedNotes = {
+              ...localNotes,
+              estimatedRehabCost: formatCurrency(totalCost),
+              lineItems: mergedItems.map((item) => ({
+                id: item.id,
+                category: item.category as
+                  | "structural"
+                  | "systems"
+                  | "interior"
+                  | "exterior",
+                description: item.description,
+                estimatedCost: item.estimatedCost,
+              })),
+              lastUpdated: new Date().toISOString(),
+            };
+
+            handleChangeWithAutoSave(updatedNotes);
+
+            if (onRehabEstimateGenerated) {
+              onRehabEstimateGenerated({
+                ...result,
+                estimatedCost: totalCost,
+              });
+            }
           }
+
+          // Update previous notes reference
+          prevNotesRef.current = localNotes;
         } catch (error) {
           console.error("Auto-estimate update error:", error);
         }
-      }, 1500); // Wait 1.5 seconds after last change
+      }, 2000); // Increase debounce time
 
       return () => clearTimeout(timer);
     }
   }, [
+    // Only depend on actual condition fields, not lineItems.length
     localNotes.overallCondition,
     localNotes.roof.condition,
     localNotes.foundation.condition,
@@ -847,7 +893,6 @@ export function RehabEstimateForm({
     localNotes.additionalIssues,
     totalSqft,
     units,
-    lineItems.length,
     handleChangeWithAutoSave,
     onRehabEstimateGenerated,
   ]);
@@ -889,7 +934,7 @@ export function RehabEstimateForm({
       // Generate detailed line items
       const generatedItems = generateLineItems(localNotes, totalSqft, units);
 
-      // Preserve custom line items (items that user added manually)
+      // Preserve custom line items
       const generatedCategories = new Set(
         generatedItems.map((item) => item.category)
       );
@@ -910,9 +955,11 @@ export function RehabEstimateForm({
 
       // Merge generated items with preserved custom items
       const mergedItems = [...generatedItems, ...customItems];
+
+      // Update lineItems state FIRST
       setLineItems(mergedItems);
 
-      // Convert LineItem[] to DealNotes['lineItems'] type
+      // Convert for notes
       const compatibleLineItems: DealNotes["lineItems"] = mergedItems.map(
         (item) => ({
           id: item.id,
@@ -926,13 +973,13 @@ export function RehabEstimateForm({
         })
       );
 
-      // Update the estimated rehab cost field (include custom items in total)
+      // Calculate total cost
       const totalCost = mergedItems.reduce(
         (sum, item) => sum + item.estimatedCost,
         0
       );
 
-      // Update notes with estimate and trigger auto-save
+      // Update notes with estimate - do this ONCE
       const updatedNotes = {
         ...localNotes,
         estimatedRehabCost: formatCurrency(totalCost),
@@ -940,6 +987,8 @@ export function RehabEstimateForm({
         lastUpdated: new Date().toISOString(),
       };
 
+      // Update local state and trigger auto-save ONCE
+      setLocalNotes(updatedNotes);
       handleChangeWithAutoSave(updatedNotes);
 
       // Notify parent components
@@ -968,7 +1017,6 @@ export function RehabEstimateForm({
       console.error("Estimate generation error:", error);
     }
   };
-
   return (
     <div className="space-y-6">
       {/* Header Card with Clear Button */}
