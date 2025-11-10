@@ -193,7 +193,7 @@ export type Strategy = "ltr" | "section8" | "airbnb" | "rehab";
 export interface TeamNote {
   id: string;
   dealId: string; // Associated deal ID
-  author: "user1" | "user2" | "system"; // This should include 'system'
+  author: "user1" | "user2" | "user3" | "system"; // This should include 'system'
   message: string;
   timestamp: string; // ISO timestamp
   isPinned: boolean;
@@ -207,6 +207,7 @@ export interface TeamNote {
 export interface UserSettings {
   user1Name: string; // Your name
   user2Name: string; // Partner's name
+  user3Name: string;
 }
 
 export interface PipelineStats {

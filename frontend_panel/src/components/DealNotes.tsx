@@ -26,12 +26,15 @@ export const DealNotes: React.FC<DealNotesProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [notes, setNotes] = useState<TeamNote[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [currentUser, setCurrentUser] = useState<"user1" | "user2">("user1");
+  const [currentUser, setCurrentUser] = useState<"user1" | "user2" | "user3">(
+    "user1"
+  );
   const [loading, setLoading] = useState(false);
   const [addingNote, setAddingNote] = useState(false);
   const [userSettings, setUserSettings] = useState({
     user1Name: "Dan",
     user2Name: "Eman",
+    user3Name: "Ayhumi",
   });
 
   // Load notes and user settings
@@ -198,12 +201,13 @@ export const DealNotes: React.FC<DealNotesProps> = ({
             <select
               value={currentUser}
               onChange={(e) =>
-                setCurrentUser(e.target.value as "user1" | "user2")
+                setCurrentUser(e.target.value as "user1" | "user2" | "user3")
               }
               className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm font-medium"
             >
               <option value="user1">👤 {getAuthorName("user1")}</option>
               <option value="user2">👤 {getAuthorName("user2")}</option>
+              <option value="user3">👤 {getAuthorName("user3")}</option>
             </select>
           </div>
 
@@ -275,10 +279,12 @@ export const DealNotes: React.FC<DealNotesProps> = ({
                         }
                         className={`text-xs font-semibold ${
                           note.isSystemNote
-                            ? "bg-slate-500 text-white"
+                            ? "bg-black text-white"
                             : note.author === "user1"
                             ? "bg-blue-600 text-white"
-                            : "bg-purple-600 text-white"
+                            : note.author === "user2"
+                            ? "bg-green-600 text-white"
+                            : "bg-orange-600 text-white"
                         }`}
                       >
                         {note.isSystemNote ? "🔒" : "👤"}{" "}

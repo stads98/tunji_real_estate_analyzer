@@ -11,6 +11,10 @@ const userSettingsSchema = new mongoose.Schema(
       type: String,
       default: "Eman",
     },
+     user3Name: {
+      type: String,
+      default: "Ayhumi",
+    },
   },
   {
     timestamps: true,

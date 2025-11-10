@@ -54,6 +54,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
   // User settings
   const [user1Name, setUser1Name] = useState("Dan");
   const [user2Name, setUser2Name] = useState("Eman");
+  const [user3Name, setUser3Name] = useState("Ayhumi");
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
@@ -85,6 +86,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
       const response = await dashboardService.getUserSettings();
       setUser1Name(response.data.user1Name || "Dan");
       setUser2Name(response.data.user2Name || "Eman");
+      setUser3Name(response.data.user3Name || "Ayhumi");
     } catch (error) {
       console.error("Failed to load user settings:", error);
     }
@@ -95,6 +97,7 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
       await dashboardService.updateUserSettings({
         user1Name: user1Name || "Dan",
         user2Name: user2Name || "Eman",
+        user3Name: user3Name || "Ayhumi",
       });
       setSettingsOpen(false);
       toast.success("User settings updated");
@@ -312,6 +315,21 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                   Your partner (Eman)
                 </p>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="user2" className="text-sm font-medium">
+                  👤 Ayhumi (User 3)
+                </Label>
+                <Input
+                  id="user3"
+                  value={user3Name}
+                  onChange={(e) => setUser3Name(e.target.value)}
+                  placeholder="Ayhumi"
+                  className="font-medium"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your partner (Ayhumi)
+                </p>
+              </div>
               <Button onClick={handleSaveSettings} className="w-full">
                 Save Names
               </Button>
@@ -481,10 +499,12 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
                     <Badge
                       className={`font-semibold ${
                         note.isSystemNote
-                          ? "bg-black text-white hover:bg-gray-800"
+                          ? "bg-black text-white hover:bg-slate-600"
                           : note.author === "user1"
-                          ? "bg-blue-600 text-white hover:bg-blue-700"
-                          : "bg-purple-600 text-white hover:bg-purple-700"
+                          ? "bg-blue-600 text-white hover:bg-blue-500"
+                          : note.author === "user2"
+                          ? "bg-green-600 text-white hover:bg-green-500"
+                          : "bg-orange-600 text-white hover:bg-orange-500"
                       }`}
                     >
                       {note.isSystemNote ? "🔒" : "👤"}

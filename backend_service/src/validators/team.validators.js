@@ -169,12 +169,19 @@ const updateUserSettingsValidation = [
     .trim()
     .escape(),
 
+  body("user3Name")
+    .optional()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("user3Name must be between 1 and 50 characters")
+    .trim()
+    .escape(),
+
   // Ensure at least one field is provided for update
   body().custom((value) => {
-    const { user1Name, user2Name } = value;
-    if (!user1Name && !user2Name) {
+    const { user1Name, user2Name, user3Name } = value;
+    if (!user1Name && !user2Name && !user3Name) {
       throw new Error(
-        "At least one field (user1Name or user2Name) must be provided for update"
+        "At least one field (user1Name, user2Name or user3Name) must be provided for update"
       );
     }
     return true;
