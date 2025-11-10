@@ -9,6 +9,7 @@ import {
   Filter,
   Loader2,
 } from "lucide-react";
+import { Line } from "rc-progress";
 import { SavedDeal } from "../types/deal";
 import { dashboardService } from "../services/dashboard.service";
 import { Card } from "./ui/card";
@@ -70,7 +71,7 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
 
   //SIMPLIFIED: Get today's date properly
   const getToday = () => {
-    return new Date(); 
+    return new Date();
   };
 
   // SIMPLIFIED: Handle start date change
@@ -167,6 +168,56 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
       default:
         return "";
     }
+  };
+
+  // Enhanced Progress Bar Component using rc-progress
+  const LineProgressBar = ({
+    percentage,
+    strokeColor = "#3B82F6", // blue-500
+    trailColor = "#E5E7EB", // gray-200
+    strokeWidth = 0.5,
+    showLabel = true,
+    label,
+    className = "",
+  }: {
+    percentage: number;
+    strokeColor?: string;
+    trailColor?: string;
+    strokeWidth?: number;
+    showLabel?: boolean;
+    label?: string;
+    className?: string;
+  }) => {
+    const clampedPercentage = Math.min(100, Math.max(0, percentage));
+
+    return (
+      <div className={`space-y-2 ${className}`}>
+        {(showLabel || label) && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">
+              {label || `${Math.round(clampedPercentage)}%`}
+            </span>
+            {showLabel && (
+              <span className="font-medium">
+                {Math.round(clampedPercentage)}%
+              </span>
+            )}
+          </div>
+        )}
+        <Line
+          percent={clampedPercentage}
+          strokeWidth={strokeWidth}
+          trailWidth={strokeWidth}
+          strokeColor={strokeColor}
+          trailColor={trailColor}
+          strokeLinecap="round"
+          style={{
+            width: "100%",
+            borderRadius: "9999px",
+          }}
+        />
+      </div>
+    );
   };
 
   if (loading) {
@@ -358,7 +409,7 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
           <div className="grid gap-4 md:grid-cols-3">
             {/* Conversion Rate */}
             <Card className="p-6">
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">Conversion Rate</p>
                 <div className="flex items-baseline gap-2">
                   <p className="text-3xl font-bold">{stats.conversionRate}%</p>
@@ -366,12 +417,13 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
                     ({stats.dealsToStage5} / {stats.dealsCreated})
                   </p>
                 </div>
-                <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-                  <div
-                    className="h-2 rounded-full bg-green-500 transition-all"
-                    style={{ width: `${stats.conversionRate}%` }}
-                  />
-                </div>
+                <LineProgressBar
+                  percentage={stats.conversionRate}
+                  strokeColor="#10B981" // green-500
+                  trailColor="#E5E7EB"
+                  strokeWidth={2}
+                  showLabel={false}
+                />
                 <p className="text-xs text-muted-foreground">
                   Deals created → Ready for offer
                 </p>
@@ -410,49 +462,49 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
           {/* Stage Distribution */}
           <Card className="p-6">
             <h3 className="mb-4 text-lg font-semibold">Stage Distribution</h3>
-            <div className="space-y-3">
+            <div className="space-y-6">
               {[
                 {
                   stage: "stage1",
                   label: "Stage 1: Basic Data",
                   count: stats.stageDistribution.stage1,
-                  color: "bg-gray-500",
+                  color: "#6B7280", // gray-500
                 },
                 {
                   stage: "stage2",
                   label: "Stage 2: Ready for Comps",
                   count: stats.stageDistribution.stage2,
-                  color: "bg-blue-500",
+                  color: "#3B82F6", // blue-500
                 },
                 {
                   stage: "stage3",
                   label: "Stage 3: Data Collection",
                   count: stats.stageDistribution.stage3,
-                  color: "bg-cyan-500",
+                  color: "#06B6D4", // cyan-500
                 },
                 {
                   stage: "stage4",
                   label: "Stage 4: Ready for Offer",
                   count: stats.stageDistribution.stage4,
-                  color: "bg-indigo-500",
+                  color: "#6366F1", // indigo-500
                 },
                 {
                   stage: "stage5",
                   label: "Stage 5: Offer Submitted",
                   count: stats.stageDistribution.stage5,
-                  color: "bg-green-500",
+                  color: "#10B981", // green-500
                 },
                 {
                   stage: "stage6",
                   label: "Stage 6: Offer Response",
                   count: stats.stageDistribution.stage6,
-                  color: "bg-yellow-500",
+                  color: "#EAB308", // yellow-500
                 },
                 {
                   stage: "archived",
                   label: "Archived/Closed",
                   count: stats.stageDistribution.archived,
-                  color: "bg-red-500",
+                  color: "#EF4444", // red-500
                 },
               ].map(({ stage, label, count, color }) => {
                 const percentage =
@@ -460,18 +512,18 @@ export const PipelineStats: React.FC<PipelineStatsProps> = () => {
                     ? (count / stats.dealsCreated) * 100
                     : 0;
                 return (
-                  <div key={stage} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-medium">
-                        {count} deals ({Math.round(percentage)}%)
-                      </span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-                      <div
-                        className={`h-2 rounded-full ${color} transition-all`}
-                        style={{ width: `${percentage}%` }}
-                      />
+                  <div key={stage} className="space-y-2">
+                    <LineProgressBar
+                      percentage={percentage}
+                      strokeColor={color}
+                      trailColor="#E5E7EB"
+                      strokeWidth={1}
+                      label={label}
+                      showLabel={true}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{count} deals</span>
+                      <span>{Math.round(percentage)}% of total</span>
                     </div>
                   </div>
                 );
