@@ -164,6 +164,8 @@ export const TeamNotesTab: React.FC<TeamNotesTabProps> = ({ savedDeals }) => {
         return user1Name || "Dan";
       case "user2":
         return user2Name || "Eman";
+      case "user3":
+        return user3Name || "Ayhumi";
       case "system":
         return "System";
       default:

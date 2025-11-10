@@ -129,6 +129,8 @@ export const DealNotes: React.FC<DealNotesProps> = ({
         return userSettings.user1Name || "Dan";
       case "user2":
         return userSettings.user2Name || "Eman";
+      case "user3":
+        return userSettings.user3Name || "Ayhumi";
       case "system":
         return "System";
       default:

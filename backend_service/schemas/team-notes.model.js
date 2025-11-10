@@ -10,7 +10,7 @@ const teamNoteSchema = new mongoose.Schema(
     },
     author: {
       type: String,
-      enum: ["user1", "user2", "system"],
+      enum: ["user1", "user2", "user3", "system"],
       required: true,
     },
     message: {
