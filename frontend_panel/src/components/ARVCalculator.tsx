@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -133,7 +133,6 @@ export function ARVCalculator({
 }: ARVCalculatorProps) {
   const [pasteData, setPasteData] = useState("");
   const [subjectPasteData, setSubjectPasteData] = useState("");
-  const [isParsingEnabled, setIsParsingEnabled] = useState(true);
   const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
   const [previewPhotos, setPreviewPhotos] = useState<
     { id: string; url: string; isPrimary?: boolean }[]
