@@ -3107,12 +3107,66 @@ export function UnifiedDashboard({
         ) : (
           /* Main Overview & Analysis View */
           <>
+            {/* Welcome Section - Added above Saved Deals */}
+            <Card className="mb-6 border-blue-300 bg-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-4">
+                  {/* Left: Note Icon */}
+                  <div className="flex-shrink-0 w-12 h-12 min-w-12 bg-blue-600 rounded-full flex items-center justify-center">
+                    <BookOpen className="h-6 w-6  text-white" />
+                  </div>
+
+                  {/* Right: Content */}
+                  <div className="flex-1">
+                    <h3 className="text-gray mb-2">
+                      👋 Welcome to Your Real Estate Deal Analyzer!
+                    </h3>
+                    <p className="text-blue-600 text-sm mb-4">
+                      Get started in seconds with the Zillow Quick Start button
+                      below, or check out the User Guide for a complete
+                      walkthrough.
+                    </p>
+
+                    {/* Buttons */}
+                    <div className="flex flex-wrap gap-3 mb-3">
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                        onClick={() => setMainView("guide")}
+                      >
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Open User Guide
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-600 text-blue-600 bg-white hover:bg-blue-50 hover:text-blue-700"
+                        onClick={() => setShowZillowQuickStart(true)}
+                      >
+                        <Star className="mr-2 h-4 w-4" />
+                        Try Zillow Quick Start
+                      </Button>
+                    </div>
+
+                    {/* Quick Tip */}
+                    <div className="bg-white border border-blue-200 rounded-lg p-3 text-sm">
+                      <p className="text-blue-700">
+                        <strong className="font-semibold">Quick Tip:</strong>{" "}
+                        Copy any Zillow listing (Ctrl+A → Ctrl+C), click Zillow
+                        Quick Start, paste, and you'll have a deal ready to
+                        analyze in seconds!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             {/* Saved Deals Table */}
             {savedDeals.length > 0 && (
               <Card className="mb-6">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  <div className="flex flex-col md:flex-row items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3">
                         <CardTitle>Saved Deals</CardTitle>
                         {(() => {
@@ -3150,131 +3204,159 @@ export function UnifiedDashboard({
                         Click any deal to view and compare side by side
                       </CardDescription>
                     </div>
-                    <div className="flex gap-2">
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleExportDeals("csv")}
-                          disabled={savedDeals.length === 0}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Export CSV
-                        </Button>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleExportDeals("json")}
-                          disabled={savedDeals.length === 0}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Export JSON
-                        </Button>
+                    {/* Responsive button container */}
+                    <div className="w-full sm:w-auto">
+                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                        <div className="flex gap-2 flex-nowrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExportDeals("csv")}
+                            disabled={savedDeals.length === 0}
+                            className="flex-shrink-0"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            <span className="hidden sm:inline">Export CSV</span>
+                            <span className="sm:hidden">CSV</span>
+                          </Button>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleImportDeals("csv")}
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Import CSV
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExportDeals("json")}
+                            disabled={savedDeals.length === 0}
+                            className="flex-shrink-0"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            <span className="hidden sm:inline">
+                              Export JSON
+                            </span>
+                            <span className="sm:hidden">JSON</span>
+                          </Button>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleImportDeals("json")}
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Import JSON
-                        </Button>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowBulkPaste(true)}
-                        className="border-purple-600 text-purple-600 hover:bg-purple-50"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Bulk Paste Favorites
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `🗑️ Remove photos from all ${savedDeals.length} deals to free up storage?\n\nDeal data will be preserved.\nDownload a backup first to preserve photos.`
-                            )
-                          ) {
-                            const dealsWithoutPhotos = savedDeals.map(
-                              (deal) => ({
-                                ...deal,
-                                photos: [],
-                                arvComps: deal.arvComps?.map((comp) => ({
-                                  ...comp,
-                                  photos: [],
-                                })),
-                              })
-                            );
-                            setSavedDeals(dealsWithoutPhotos);
-                            toast.success(
-                              "Photos removed from all deals. Storage space freed up!",
-                              {
-                                description:
-                                  "Deal calculations and data preserved.",
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleImportDeals("csv")}
+                            className="flex-shrink-0"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            <span className="hidden sm:inline">Import CSV</span>
+                            <span className="sm:hidden">CSV</span>
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleImportDeals("json")}
+                            className="flex-shrink-0"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            <span className="hidden sm:inline">
+                              Import JSON
+                            </span>
+                            <span className="sm:hidden">JSON</span>
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowBulkPaste(true)}
+                            className="flex-shrink-0 border-purple-600 text-purple-600 hover:bg-purple-50"
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            <span className="hidden md:inline">Bulk Paste</span>
+                            <span className="md:hidden">Bulk</span>
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `🗑️ Remove photos from all ${savedDeals.length} deals to free up storage?\n\nDeal data will be preserved.\nDownload a backup first to preserve photos.`
+                                )
+                              ) {
+                                const dealsWithoutPhotos = savedDeals.map(
+                                  (deal) => ({
+                                    ...deal,
+                                    photos: [],
+                                    arvComps: deal.arvComps?.map((comp) => ({
+                                      ...comp,
+                                      photos: [],
+                                    })),
+                                  })
+                                );
+                                setSavedDeals(dealsWithoutPhotos);
+                                toast.success(
+                                  "Photos removed from all deals. Storage space freed up!",
+                                  {
+                                    description:
+                                      "Deal calculations and data preserved.",
+                                  }
+                                );
                               }
-                            );
-                          }
-                        }}
-                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                      >
-                        <ImageIcon className="mr-2 h-4 w-4" />
-                        Strip Photos
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          if (savedDeals.length === 0) {
-                            toast.info("No deals to delete");
-                            return;
-                          }
+                            }}
+                            className="flex-shrink-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          >
+                            <ImageIcon className="mr-2 h-4 w-4" />
+                            <span className="hidden md:inline">
+                              Strip Photos
+                            </span>
+                            <span className="md:hidden">Photos</span>
+                          </Button>
 
-                          if (
-                            window.confirm(
-                              `⚠️ Are you sure you want to PERMANENTLY DELETE ALL ${savedDeals.length} deals?\n\nThis action cannot be undone and will remove all deals from the database!\n\nTIP: Export a backup first if you might need them later.`
-                            )
-                          ) {
-                            try {
-                              const result =
-                                await dashboardService.deleteAllDeals();
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              if (savedDeals.length === 0) {
+                                toast.info("No deals to delete");
+                                return;
+                              }
 
-                              // Clear local state after successful API call
-                              setSavedDeals([]);
-                              setCurrentDealId(null);
+                              if (
+                                window.confirm(
+                                  `⚠️ Are you sure you want to PERMANENTLY DELETE ALL ${savedDeals.length} deals?\n\nThis action cannot be undone and will remove all deals from the database!\n\nTIP: Export a backup first if you might need them later.`
+                                )
+                              ) {
+                                try {
+                                  const result =
+                                    await dashboardService.deleteAllDeals();
 
-                              toast.success(
-                                `Successfully deleted ${result.deletedCount} deals from the database`
-                              );
+                                  // Clear local state after successful API call
+                                  setSavedDeals([]);
+                                  setCurrentDealId(null);
 
-                              // Optional: Refresh the deals list to ensure consistency
-                              await loadDealsFromAPI();
-                            } catch (error) {
-                              console.error(
-                                "Failed to delete all deals:",
-                                error
-                              );
-                            }
-                          }
-                        }}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        disabled={savedDeals.length === 0}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete All ({savedDeals.length})
-                      </Button>
+                                  toast.success(
+                                    `Successfully deleted ${result.deletedCount} deals from the database`
+                                  );
+
+                                  // Optional: Refresh the deals list to ensure consistency
+                                  await loadDealsFromAPI();
+                                } catch (error) {
+                                  console.error(
+                                    "Failed to delete all deals:",
+                                    error
+                                  );
+                                }
+                              }
+                            }}
+                            className="flex-shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            disabled={savedDeals.length === 0}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            <span className="hidden md:inline">
+                              Delete All ({savedDeals.length})
+                            </span>
+                            <span className="md:hidden">
+                              Del ({savedDeals.length})
+                            </span>
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
