@@ -1162,8 +1162,8 @@ export function UnifiedDashboard({
           setIsAutoSaving(true);
         } else {
           setSavingDeal(true);
+          setIsSaving(true); // ← Only set for manual saves
         }
-        setIsSaving(true);
 
         // Convert and upload photos to VPS
         let photosToSave = inputs.photos || [];
@@ -1266,8 +1266,8 @@ export function UnifiedDashboard({
           setIsAutoSaving(false);
         } else {
           setSavingDeal(false);
+          setIsSaving(false); // ← Only reset for manual saves
         }
-        setIsSaving(false);
       }
     },
     [inputs, currentDealId]
@@ -3787,11 +3787,11 @@ export function UnifiedDashboard({
                 </CardContent>
               </Card>
             )}
-            {(loading || isSaving) && (
+            {(loading || savingDeal) && (
               <div className="flex p-4 mb-6  items-center justify-center h-64 bg-muted/30 border-2 border-dashed border-border rounded-lg">
                 <div className="text-gray-600 dark:text-gray-400 flex justify-center items-center gap-2">
                   <Loader className="animate-spin text-gray-500 dark:text-gray-400 h-4 w-4" />
-                  Loading deals...
+                  {savingDeal ? "Saving deal..." : "Loading deals..."}
                 </div>
               </div>
             )}
