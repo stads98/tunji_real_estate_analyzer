@@ -144,20 +144,20 @@ export function RehabEstimateForm({
   };
 
   // Track changes for auto-save
-  const handleChangeWithAutoSave = useCallback(
-    (newNotes: DealNotes) => {
-      setLocalNotes(newNotes);
+  // const handleChangeWithAutoSave = useCallback(
+  //   (newNotes: DealNotes) => {
+  //     setLocalNotes(newNotes);
 
-      // Immediately notify parent of changes
-      onChange(newNotes);
+  //     // Immediately notify parent of changes
+  //     onChange(newNotes);
 
-      // Trigger auto-save if enabled
-      if (autoSaveEnabled && onAutoSaveTrigger) {
-        onAutoSaveTrigger();
-      }
-    },
-    [onChange, onAutoSaveTrigger, autoSaveEnabled]
-  );
+  //     // Trigger auto-save if enabled
+  //     if (autoSaveEnabled && onAutoSaveTrigger) {
+  //       onAutoSaveTrigger();
+  //     }
+  //   },
+  //   [onChange, onAutoSaveTrigger, autoSaveEnabled]
+  // );
 
   // Update local notes when parent notes change (e.g., from saved deal)
   useEffect(() => {
@@ -547,9 +547,6 @@ export function RehabEstimateForm({
 
     setLocalNotes(updatedNotes);
 
-    // Trigger auto-save with parsed data
-    handleChangeWithAutoSave(updatedNotes);
-
     // Count actual fields filled (non-empty values in updates)
     const fieldsFilledCount = Object.keys(updates).reduce((count, key) => {
       const updateValue = (updates as any)[key];
@@ -587,7 +584,7 @@ export function RehabEstimateForm({
     } else {
       toast.warning("No matching fields found in the text");
     }
-  }, [localNotes, parseText, handleChangeWithAutoSave]);
+  }, [localNotes, parseText]);
 
   const handleBathroomConditionChange = useCallback(
     (val: string) => {
@@ -621,10 +618,8 @@ export function RehabEstimateForm({
         bathrooms: updatedBathrooms,
         lastUpdated: new Date().toISOString(),
       };
-
-      handleChangeWithAutoSave(updatedNotes);
     },
-    [localNotes, handleChangeWithAutoSave]
+    [localNotes]
   );
 
   // Enhanced clear rehab section handler
@@ -640,15 +635,11 @@ export function RehabEstimateForm({
     setIsFinalized(false);
 
     // Notify parent with cleared data
-    handleChangeWithAutoSave({
-      ...defaultNotes,
-      lastUpdated: new Date().toISOString(),
-    });
 
     // Close dialog and show success
     setShowClearConfirmDialog(false);
     toast.success("Rehab section cleared and changes saved!");
-  }, [handleChangeWithAutoSave]);
+  }, []);
 
   // Enhanced line items change handler
   const handleLineItemsChange = useCallback(
@@ -676,8 +667,6 @@ export function RehabEstimateForm({
         lastUpdated: new Date().toISOString(),
       };
 
-      handleChangeWithAutoSave(updatedNotes);
-
       // Notify parent of cost changes
       if (onRehabCostChange) {
         const totalCost = newLineItems.reduce(
@@ -687,7 +676,7 @@ export function RehabEstimateForm({
         onRehabCostChange(totalCost);
       }
     },
-    [localNotes, handleChangeWithAutoSave, onRehabCostChange]
+    [localNotes, onRehabCostChange]
   );
 
   // Enhanced finalize handler
@@ -700,9 +689,8 @@ export function RehabEstimateForm({
       lastUpdated: new Date().toISOString(),
     };
 
-    handleChangeWithAutoSave(updatedNotes);
     toast.success("Scope of work finalized and saved!");
-  }, [localNotes, handleChangeWithAutoSave]);
+  }, [localNotes]);
 
   // Enhanced edit scope handler
   const handleEditScope = useCallback(() => {
@@ -713,9 +701,7 @@ export function RehabEstimateForm({
       isScopeFinalized: false,
       lastUpdated: new Date().toISOString(),
     };
-
-    handleChangeWithAutoSave(updatedNotes);
-  }, [localNotes, handleChangeWithAutoSave]);
+  }, [localNotes]);
 
   // Sync isFinalized state when notes change (e.g., when loading saved deal)
   useEffect(() => {
@@ -770,7 +756,6 @@ export function RehabEstimateForm({
         };
 
         setLocalNotes(notesWithDefaults);
-        handleChangeWithAutoSave(notesWithDefaults);
 
         // Show subtle notification for applied defaults
         const warningDefaults = appliedDefaults.filter((d) => d.includes("⚠️"));
@@ -786,7 +771,7 @@ export function RehabEstimateForm({
         }
       }
     }
-  }, [localNotes.roof.roofYear, yearBuilt, handleChangeWithAutoSave]);
+  }, [localNotes.roof.roofYear, yearBuilt]);
 
   // Enhanced auto-regenerate estimate - fix the type issue
   useEffect(() => {
@@ -856,8 +841,6 @@ export function RehabEstimateForm({
               lastUpdated: new Date().toISOString(),
             };
 
-            handleChangeWithAutoSave(updatedNotes);
-
             if (onRehabEstimateGenerated) {
               onRehabEstimateGenerated({
                 ...result,
@@ -893,7 +876,6 @@ export function RehabEstimateForm({
     localNotes.additionalIssues,
     totalSqft,
     units,
-    handleChangeWithAutoSave,
     onRehabEstimateGenerated,
   ]);
 
@@ -989,7 +971,6 @@ export function RehabEstimateForm({
 
       // Update local state and trigger auto-save ONCE
       setLocalNotes(updatedNotes);
-      handleChangeWithAutoSave(updatedNotes);
 
       // Notify parent components
       if (onRehabEstimateGenerated) {
