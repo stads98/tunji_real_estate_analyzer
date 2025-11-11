@@ -14,17 +14,20 @@ class DealService {
     minUnits,
     maxUnits,
     isRehab,
+    dealStage, // NEW: Filter by deal stage
     sortBy = "createdAt",
     sortOrder = "desc",
   }) {
     try {
       let query = { isActive: true };
 
-      // Search across address
+      // Search across address and realtor info
       if (search) {
         query.$or = [
           { address: { $regex: search, $options: "i" } },
           { "notes.realtorName": { $regex: search, $options: "i" } },
+          { "notes.realtorEmail": { $regex: search, $options: "i" } },
+          { "notes.generalNotes": { $regex: search, $options: "i" } },
         ];
       }
 
@@ -47,17 +50,38 @@ class DealService {
         query.isRehab = isRehab === "true";
       }
 
-      // Sort options
-      const sortOptions = {};
-      sortOptions[sortBy] = sortOrder === "desc" ? -1 : 1;
+      // NEW: Filter by deal stage
+      if (dealStage) {
+        query.dealStage = dealStage;
+      }
 
+      // Sort options - enhanced with stage tracking
+      const sortOptions = {};
+      if (sortBy === "stageUpdatedAt") {
+        sortOptions.stageUpdatedAt = sortOrder === "desc" ? -1 : 1;
+      } else if (sortBy === "purchasePrice") {
+        sortOptions.purchasePrice = sortOrder === "desc" ? -1 : 1;
+      } else if (sortBy === "units") {
+        sortOptions.units = sortOrder === "desc" ? -1 : 1;
+      } else if (sortBy === "dealStage") {
+        sortOptions.dealStage = sortOrder === "desc" ? -1 : 1;
+      } else {
+        // Default to createdAt
+        sortOptions[sortBy] = sortOrder === "desc" ? -1 : 1;
+      }
+
+      // REMOVED: .select("-isActive -__v") to include all fields
       const deals = await Deal.find(query)
-        .select("-isActive -__v")
         .limit(limit * 1)
         .skip((page - 1) * limit)
         .sort(sortOptions);
 
       const total = await Deal.countDocuments(query);
+
+      // Get user's global assumptions for each deal (optional)
+      const assumptions = await GlobalAssumptions.findOne({
+        isActive: true,
+      });
 
       await logger.info("Deals retrieved successfully", {
         service: "DealService",
@@ -66,10 +90,12 @@ class DealService {
         total,
         page,
         limit,
+        hasAssumptions: !!assumptions,
       });
 
       return {
         deals,
+        assumptions: assumptions || this.getDefaultAssumptions(), // Include assumptions like getDealById
         pagination: {
           total_pages: Math.ceil(total / limit),
           current_page: parseInt(page),
@@ -242,7 +268,6 @@ class DealService {
   async exportDeals() {
     try {
       const deals = await Deal.find({ isActive: true })
-        .select("-isActive -__v")
         .sort({ createdAt: -1 });
 
       await logger.info("Deals exported successfully", {

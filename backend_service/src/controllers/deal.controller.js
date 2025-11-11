@@ -17,6 +17,7 @@ class DealController {
         minUnits,
         maxUnits,
         isRehab,
+        dealStage, // NEW: Deal stage filter
         sortBy = "createdAt",
         sortOrder = "desc",
       } = req.query;
@@ -30,6 +31,7 @@ class DealController {
         minUnits,
         maxUnits,
         isRehab,
+        dealStage, // NEW: Pass dealStage to service
         sortBy,
         sortOrder,
       });
@@ -37,6 +39,7 @@ class DealController {
       return sendResponse(res, 200, {
         status: STATUS.SUCCESS,
         data: result.deals,
+        assumptions: result.assumptions, // NEW: Include assumptions in response
         pagination: result.pagination,
       });
     } catch (error) {
