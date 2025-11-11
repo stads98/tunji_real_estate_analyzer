@@ -15,6 +15,7 @@ const morgan = require("morgan");
 const config = require("../config");
 
 const server = express();
+server.set('trust proxy', true); // 👈 Add this
 
 // CORS configuration for API routes
 const corsOptions = {
