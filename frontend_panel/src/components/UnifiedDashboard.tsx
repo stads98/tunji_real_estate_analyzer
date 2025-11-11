@@ -747,10 +747,6 @@ export function UnifiedDashboard({
     }
   };
 
-  const handleNotesChange = (notes: DealNotes) => {
-    setInputs((prev) => ({ ...prev, notes }));
-  };
-
   const handleARVCompsChange = (comps: ZillowComp[]) => {
     setInputs((prev) => ({ ...prev, arvComps: comps }));
   };
@@ -1302,11 +1298,10 @@ export function UnifiedDashboard({
   // Updated load deal function
   const handleLoadDeal = async (deal: SavedDeal) => {
     try {
-      const response = await dashboardService.getDeal(deal.id);
+      // Use the deal data directly from savedDeals instead of making an API call
+      const loadedDeal = { ...deal };
 
       // Handle backward compatibility with old saved deals
-      const loadedDeal = { ...response.data };
-
       // If old format with propertyTaxesInsurance, split it
       if (
         "propertyTaxesInsurance" in loadedDeal &&
@@ -1379,17 +1374,30 @@ export function UnifiedDashboard({
         loadedDeal.calculatedARV = 0;
       }
 
+      // Set totalBeds/totalBaths for multi-family properties
+      if (loadedDeal.units >= 2 && loadedDeal.units <= 4) {
+        const totalBeds = loadedDeal.unitDetails.reduce(
+          (sum, unit) => sum + unit.beds,
+          0
+        );
+        const totalBaths = loadedDeal.unitDetails.reduce(
+          (sum, unit) => sum + unit.baths,
+          0
+        );
+        setTotalBeds(totalBeds);
+        setTotalBaths(totalBaths);
+      }
+
       setInputs(loadedDeal);
       setCurrentDealId(deal.id);
       setHasManuallySelectedTab(false);
+
       toast.success("Deal loaded successfully");
-      // await loadDealsFromAPI();
     } catch (error) {
       console.error("Failed to load deal:", error);
       toast.error("Failed to load deal");
     }
   };
-
   // Enhanced export deals function with CSV generation
   const handleExportDeals = async (format: "json" | "csv" = "csv") => {
     if (savedDeals.length === 0) {
