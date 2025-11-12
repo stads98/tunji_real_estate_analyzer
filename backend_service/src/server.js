@@ -44,20 +44,14 @@ server.use(express.json({ limit: "50mb" }));
 
 // Apply rate limiting to API routes
 const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
+  windowMs: 1 * 60 * 1000, // 1 minutes
   max: 60,
   message: {
     status: 429,
-    message: "Too many requests from this IP, please try again after 1 minute",
+    message: "Too many requests from this IP, please try again after 1 minutes",
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Add request property mapper to ensure correct IP
-  requestPropertyName: 'ip', // Ensures consistent IP property
-  skip: (req) => {
-    // Skip rate limiting for certain paths if needed
-    return req.path.includes('/health-check');
-  }
 });
 
 server.use("/api", apiLimiter);
