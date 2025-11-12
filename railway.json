@@ -1,0 +1,9 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "cd backend_service && npm start",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
