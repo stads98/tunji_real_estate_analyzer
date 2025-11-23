@@ -40,7 +40,6 @@ export default function App() {
       setLoading(false);
     }
   };
-  
 
   const handleAssumptionsSave = async (assumptions: GlobalAssumptions) => {
     try {
@@ -85,8 +84,6 @@ export default function App() {
     insuranceIncreasePercent: 5,
     section8ZipData: [],
   });
-
-
 
   return (
     <>
