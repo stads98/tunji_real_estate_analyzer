@@ -40,6 +40,7 @@ export default function App() {
       setLoading(false);
     }
   };
+  
 
   const handleAssumptionsSave = async (assumptions: GlobalAssumptions) => {
     try {
