@@ -13,13 +13,12 @@ import {
   DialogDescription,
 } from "./components/ui/dialog";
 import { dashboardService } from "./services/dashboard.service";
-import { Loader } from "lucide-react";
 
 export default function App() {
   const [showAssumptions, setShowAssumptions] = useState(false);
   const [globalAssumptions, setGlobalAssumptions] =
     useState<GlobalAssumptions | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [_, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Load assumptions on app startup
@@ -86,14 +85,7 @@ export default function App() {
     section8ZipData: [],
   });
 
-  if (loading && !globalAssumptions) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader className="animate-spin text-gray-500 dark:text-gray-400 h-6 w-6" />
-        <div className="text-lg ml-2">Loading...</div>
-      </div>
-    );
-  }
+
 
   return (
     <>
