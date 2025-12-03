@@ -25,7 +25,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 class DashboardService {
   private api = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 1000000,
+    timeout: 50000,
     headers: {
       "Content-Type": "application/json",
     },
